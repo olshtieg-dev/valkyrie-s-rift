@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://bk2oju28k1hvc"]
+
+[ext_resource type="Script" uid="uid://b4nqnehl00t4u" path="res://scripts/switch_sword_button.gd" id="1_m5xpn"]
+[ext_resource type="Texture2D" uid="uid://do2g26826l08g" path="res://assets/sprites/swords/swords238.png" id="2_uy3ks"]
+[ext_resource type="Texture2D" uid="uid://bdvw0ick0lyu4" path="res://assets/sprites/swords/swords160.png" id="3_cm5oj"]
+
+[node name="SwitchSwordButton" type="TextureButton" unique_id=20577925]
+offset_left = -807.0
+offset_top = -408.0
+offset_right = -695.0
+offset_bottom = -377.0
+script = ExtResource("1_m5xpn")
+icon_sword_1 = ExtResource("2_uy3ks")
+icon_sword_2 = ExtResource("3_cm5oj")

@@ -1,0 +1,163 @@
+[gd_scene format=3 uid="uid://sfdgdk4ik48"]
+
+[ext_resource type="Script" uid="uid://dnyinyr501ki3" path="res://scripts/weapon.gd" id="1_n355p"]
+[ext_resource type="Texture2D" uid="uid://do2g26826l08g" path="res://assets/sprites/swords/swords238.png" id="1_ycbs3"]
+
+[sub_resource type="Animation" id="Animation_s4ec8"]
+length = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = false
+tracks/0/path = NodePath(".:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(),
+"transitions": PackedFloat32Array(),
+"update": 0,
+"values": []
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath(".:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [2.2428901, 4.980181]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("SwordSprite:visible")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [true, false]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = false
+tracks/3/path = NodePath("SwordSprite:modulate")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Color(1, 1, 1, 1)]
+}
+tracks/4/type = "value"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("Hitbox:position")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(-5.6783285, 7.533698)]
+}
+tracks/5/type = "value"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath("Hitbox:rotation")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [-3.1282089]
+}
+
+[sub_resource type="Animation" id="Animation_k5whp"]
+resource_name = "attack_slash"
+length = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0.001, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0, 0), Vector2(0, 0)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath(".:rotation")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0.001, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [2.6902611, 5.176812]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("SwordSprite:visible")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [true, false]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("SwordSprite:modulate")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.033333335, 0.06666667, 0.1),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 0,
+"values": [Color(1, 1, 1, 0.98039216), Color(1, 1, 1, 0.98039216), Color(1, 1, 1, 1), Color(0.99607843, 0.7882353, 0.83137256, 1)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_1yp6w"]
+_data = {
+&"RESET": SubResource("Animation_s4ec8"),
+&"attack_slash": SubResource("Animation_k5whp")
+}
+
+[sub_resource type="SegmentShape2D" id="SegmentShape2D_n355p"]
+a = Vector2(9.259964, -6.6089454)
+b = Vector2(-5, 7)
+
+[node name="Sword" type="Area2D" unique_id=990591860 node_paths=PackedStringArray("anim_player", "sword_sprite", "hitbox")]
+rotation = 2.2428901
+script = ExtResource("1_n355p")
+anim_player = NodePath("sword1")
+sword_sprite = NodePath("SwordSprite")
+hitbox = NodePath("Hitbox")
+
+[node name="SwordSprite" type="Sprite2D" parent="." unique_id=1840972053]
+rotation = -9.337497
+scale = Vector2(0.53125, 0.5625)
+texture = ExtResource("1_ycbs3")
+offset = Vector2(10, -12)
+
+[node name="sword1" type="AnimationPlayer" parent="." unique_id=1171660084]
+libraries/ = SubResource("AnimationLibrary_1yp6w")
+
+[node name="Hitbox" type="CollisionShape2D" parent="." unique_id=605575950]
+position = Vector2(-5.6783285, 7.533698)
+rotation = -3.1282089
+shape = SubResource("SegmentShape2D_n355p")
+disabled = true

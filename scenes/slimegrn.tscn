@@ -1,0 +1,80 @@
+[gd_scene format=3 uid="uid://ddoyhgke5qunm"]
+
+[ext_resource type="Texture2D" uid="uid://bvaj6jqo38har" path="res://assets/sprites/slime_green.png" id="1_em1gc"]
+[ext_resource type="Script" uid="uid://c5x5qn0j6obh8" path="res://scripts/slimegrn.gd" id="1_mvw2q"]
+[ext_resource type="PackedScene" uid="uid://b87qwc4uievt5" path="res://scenes/killzone.tscn" id="2_mvw2q"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ueoo8"]
+atlas = ExtResource("1_em1gc")
+region = Rect2(0, 24, 24, 24)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_0gfn0"]
+atlas = ExtResource("1_em1gc")
+region = Rect2(24, 24, 24, 24)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_atjvd"]
+atlas = ExtResource("1_em1gc")
+region = Rect2(48, 24, 24, 24)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_hug3r"]
+atlas = ExtResource("1_em1gc")
+region = Rect2(72, 24, 24, 24)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_lnw2b"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_ueoo8")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_0gfn0")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_atjvd")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_hug3r")
+}],
+"loop": true,
+"name": &"default",
+"speed": 10.0
+}]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_8n74j"]
+size = Vector2(10, 12)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(10, 12)
+
+[node name="slimegrn" type="CharacterBody2D" unique_id=757951087]
+collision_layer = 4
+collision_mask = 1
+script = ExtResource("1_mvw2q")
+
+[node name="BodyCollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 5)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1569125329]
+sprite_frames = SubResource("SpriteFrames_lnw2b")
+autoplay = "default"
+frame_progress = 0.76760143
+
+[node name="killzone" parent="." unique_id=1020646720 instance=ExtResource("2_mvw2q")]
+collision_mask = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="killzone" unique_id=1099419173]
+position = Vector2(0, 5)
+shape = SubResource("RectangleShape2D_8n74j")
+
+[node name="RayCastright" type="RayCast2D" parent="." unique_id=1168628337]
+position = Vector2(1, 10)
+target_position = Vector2(9, 0)
+
+[node name="RayCastleft" type="RayCast2D" parent="." unique_id=1158984011]
+position = Vector2(0, 10)
+target_position = Vector2(-10, 0)
+
+[node name="RayCastDown" type="RayCast2D" parent="." unique_id=1400912457]
+position = Vector2(6, 10)
+target_position = Vector2(0, 16)
