@@ -42,7 +42,6 @@ A shared sign-in board, so agents (and humans) can see who is working on what ri
 
 | Worker | Task | Files / areas claimed | Started | Notes |
 |---|---|---|---|---|
-| claude-mobs-climb | Enemy roster (droppable mob scenes) + vertical CLIMB/SKY generator styles; relayout levels to a vertical climb incl. sky realm | `scripts/enemies/` (new), `scenes/enemies/` (new), `scripts/level/`, `levels/`, `scripts/autoload/debug_menu.gd` | 2026-11-10 17:50 | Enemies: layer 3 (enemy) body, hurtbox Area2D on layer 1 so existing swords hit them. Not touching `scripts/weapon.gd` or `scenes/sword*.tscn`. |
 
 ## Environment
 
@@ -60,6 +59,7 @@ A shared sign-in board, so agents (and humans) can see who is working on what ri
 | `scenes/` | Reusable scenes (player, enemies, platforms, weapons, `ui/`) |
 | `scripts/` | GDScript; `scripts/level/` holds level flow (exits, spawn points, registry, tile themes) |
 | `tilesets/` | Shared `TileSet` resources |
+| `data/` | Game data resources. `data/weapons/*.tres` are `WeaponData` (swing scene, damage, element, and the movement/flutter each sword gives her) |
 | `assets/` | Sprites, sounds, music, fonts. See `assets/LICENSE & CREDITS.txt` before adding or redistributing |
 | `tools/` | Dev-environment setup scripts |
 

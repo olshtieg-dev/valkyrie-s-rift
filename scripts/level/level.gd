@@ -1,0 +1,167 @@
+class_name Level
+extends Node2D
+## Root script for every playable room. On load it:
+##   1. runs the LevelGenerator if the room isn't baked yet,
+##   2. collects spawn points (generator anchors + SpawnPoint nodes),
+##   3. snaps anchored LevelExits onto their openings,
+##   4. walls off the room's edges and adds a kill floor below it,
+##   5. spawns the player, camera and HUD at the requested spawn.
+## Every level scene can be run on its own with F6.
+
+const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const HUD_SCENE := preload("res://scenes/ui/hud.tscn")
+const TILE := 16
+const CAMERA_ZOOM := Vector2(3, 3)
+const BOUNDS_THICKNESS := 64.0
+
+@export var level_id: String = ""
+@export var display_name: String = ""
+@export var realm: String = ""
+## Spawn used when arriving without a specific target (debug warp, F6).
+@export var default_spawn: String = "default"
+
+@export_group("Atmosphere")
+@export var clear_color: Color = Color(0.08, 0.07, 0.1)
+## Tints the whole room (not the HUD). White = no tint.
+@export var ambient_color: Color = Color.WHITE
+
+@export_group("Nodes")
+## Tile layer that defines the room's extent (and the collision).
+@export var ground: TileMapLayer
+@export var generator: LevelGenerator
+
+var player: CharacterBody2D
+var hud: CanvasLayer
+var bounds_rect: Rect2
+var spawns: Dictionary = {} # String -> Vector2 (feet position, level-local)
+
+
+func _ready() -> void:
+	_build()
+	_collect_spawns()
+	_place_exits()
+	bounds_rect = _compute_bounds()
+	_create_bounds(bounds_rect)
+	_apply_atmosphere()
+	_spawn_player()
+	hud = HUD_SCENE.instantiate()
+	add_child(hud)
+	LevelManager.register_level(self)
+
+
+## Override in subclasses that build their geometry in code (see debug_room.gd).
+func _build() -> void:
+	if generator:
+		generator.generate_if_needed()
+
+
+func announce() -> void:
+	if hud and hud.has_method("show_title"):
+		var realm_info := LevelRegistry.realm(realm)
+		var prefix: String = realm_info.get("name", "")
+		hud.show_title("%s — %s" % [prefix, display_name] if prefix != "" else display_name)
+
+
+func get_spawn_position(spawn_id: String) -> Vector2:
+	for key in [spawn_id, default_spawn, "default"]:
+		if key != "" and spawns.has(key):
+			return spawns[key]
+	if not spawns.is_empty():
+		return spawns.values()[0]
+	push_warning("Level %s has no spawn points; spawning at origin." % level_id)
+	return Vector2.ZERO
+
+
+# --------------------------------------------------------------------------
+
+func _collect_spawns() -> void:
+	if generator:
+		for anchor_name: String in generator.anchors:
+			spawns[anchor_name] = generator.anchors[anchor_name]["spawn"]
+	for node in find_children("*", "Marker2D", true, false):
+		if node is SpawnPoint:
+			spawns[String(node.spawn_id)] = to_local(node.global_position)
+
+
+func _place_exits() -> void:
+	for node in find_children("*", "Area2D", true, false):
+		if not (node is LevelExit) or node.anchor == "":
+			continue
+		if generator and generator.anchors.has(node.anchor):
+			node.set_rect(generator.anchors[node.anchor]["exit"])
+		else:
+			push_warning("%s: exit '%s' wants anchor '%s', but that opening isn't enabled on the generator." \
+					% [level_id, node.name, node.anchor])
+			node.process_mode = Node.PROCESS_MODE_DISABLED
+
+
+func _compute_bounds() -> Rect2:
+	if not ground:
+		push_warning("Level %s has no ground layer; camera and bounds are unlimited." % level_id)
+		return Rect2(-100000, -100000, 200000, 200000)
+	if generator:
+		# The generator's grid is the room, including open sky with no tiles in it.
+		return Rect2(ground.position, Vector2(generator.width, generator.height) * TILE)
+	var used := ground.get_used_rect()
+	return Rect2(Vector2(used.position * TILE) + ground.position, Vector2(used.size * TILE))
+
+
+## Invisible walls left/right/top so nothing leaves the room except through
+## exits, and a kill floor underneath that returns the player to safe ground.
+func _create_bounds(rect: Rect2) -> void:
+	var t := BOUNDS_THICKNESS
+	var walls := StaticBody2D.new()
+	walls.name = "LevelBounds"
+	walls.collision_layer = 1
+	walls.collision_mask = 0
+	for r in [
+		Rect2(rect.position.x - t, rect.position.y - t, t, rect.size.y + t * 2), # left
+		Rect2(rect.end.x, rect.position.y - t, t, rect.size.y + t * 2), # right
+		Rect2(rect.position.x - t, rect.position.y - t, rect.size.x + t * 2, t), # top
+	]:
+		walls.add_child(_rect_shape(r))
+	add_child(walls)
+
+	var kill := Area2D.new()
+	kill.name = "KillFloor"
+	kill.collision_layer = 0
+	kill.collision_mask = 2 # player
+	kill.monitorable = false
+	kill.add_child(_rect_shape(Rect2(rect.position.x - t * 4, rect.end.y + 48, rect.size.x + t * 8, t)))
+	kill.body_entered.connect(func(body: Node2D) -> void:
+		if body.has_method("respawn_from_hazard"):
+			body.respawn_from_hazard(1))
+	add_child(kill)
+
+
+func _rect_shape(r: Rect2) -> CollisionShape2D:
+	var shape := CollisionShape2D.new()
+	var rect_shape := RectangleShape2D.new()
+	rect_shape.size = r.size
+	shape.shape = rect_shape
+	shape.position = r.get_center()
+	return shape
+
+
+func _apply_atmosphere() -> void:
+	RenderingServer.set_default_clear_color(clear_color)
+	if ambient_color != Color.WHITE:
+		var modulate_node := CanvasModulate.new()
+		modulate_node.color = ambient_color
+		add_child(modulate_node)
+
+
+func _spawn_player() -> void:
+	player = PLAYER_SCENE.instantiate()
+	player.position = get_spawn_position(LevelManager.spawn_id)
+	var camera := Camera2D.new()
+	camera.zoom = CAMERA_ZOOM
+	camera.position = Vector2(0, -7)
+	camera.position_smoothing_enabled = true
+	camera.limit_left = int(bounds_rect.position.x)
+	camera.limit_top = int(bounds_rect.position.y)
+	camera.limit_right = int(bounds_rect.end.x)
+	camera.limit_bottom = int(bounds_rect.end.y)
+	player.add_child(camera)
+	add_child(player)
+	camera.reset_smoothing()

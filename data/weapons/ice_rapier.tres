@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/sword2.tscn" id="1_5hd6p"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_data.gd" id="2_lcvsy"]
+
+[resource]
+script = ExtResource("2_lcvsy")
+id = &"ice_rapier"
+display_name = "Ice Rapier"
+description = "Light, fast thrusts that chill what they pierce. Quick to build speed and high flutters, but it slides on turns."
+scene = ExtResource("1_5hd6p")
+damage = 20
+element = 1
+top_speed = 1.15
+acceleration = 1.2
+momentum_gain = 1.4
+traction = 0.55
+flutter_height = 1.15
+flutter_charges = 3

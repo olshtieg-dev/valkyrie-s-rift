@@ -13,6 +13,10 @@ class_name Weapon
 @export var thrust_speed: float = 0.0
 @export var thrust_vertical_speed: float = 0.0
 
+## Set by the player when equipped. Supplies damage, element and heavy hits;
+## without it the exported `damage` is used and hits are plain.
+var data: WeaponData
+
 func _ready() -> void:
 	# Safety check in case you forget to assign the node in Inspector
 	if not anim_player:
@@ -53,6 +57,9 @@ func swing() -> bool:
 	anim_player.play(animation_to_play)
 	return true
 
+func is_swinging() -> bool:
+	return anim_player != null and anim_player.is_playing()
+
 func get_attack_thrust(facing_direction: float) -> Vector2:
 	var horizontal_sign: float = -1.0 if facing_direction < 0 else 1.0
 	return Vector2(horizontal_sign * thrust_speed, thrust_vertical_speed)
@@ -67,12 +74,15 @@ func _on_area_entered(area: Area2D) -> void:
 		_apply_hit(parent as Node2D)
 
 func _apply_hit(target: Node2D) -> bool:
-	if target == owner: return false # Don't hit yourself
-	if target.has_method("take_damage"):
-		var knockback_dir = global_transform.x.normalized()
-		target.take_damage(damage, knockback_dir * knockback_force)
-		return true
-	return false
+	if target == owner or target.is_in_group("player"): return false # Don't hit yourself
+	return Hit.deliver(target, make_hit())
+
+
+func make_hit() -> Hit:
+	var knockback := global_transform.x.normalized() * knockback_force
+	if data:
+		return Hit.make(data.damage, knockback, data.element, data.heavy_hits, self)
+	return Hit.make(damage, knockback, Hit.Element.NONE, false, self)
 
 func _apply_hits_from_overlaps() -> void:
 	var hit_any := false

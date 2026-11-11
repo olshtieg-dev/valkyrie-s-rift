@@ -24,3 +24,19 @@ SOUNDS by Brackeys, Asbjørn Thirslund
 MUSIC by Brackeys, Sofia Thirslund
 
 FONTS by Jayvee Enaguas - HarvettFox96 - (https://www.dafont.com/pixel-operator.font?l[]=10&l[]=1)
+
+
+ENEMY SPRITES: "Tiny Creatures" by Clint Bellanger (clintbellanger.net)
+  Source: https://opengameart.org/content/tiny-creatures
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sprites/tiny_creatures/ (original tilemap_packed.png + License.txt)
+  Expansion of Kenney's Tiny Dungeon / Tiny Town, made with Kenney's permission.
+  Derived: assets/sprites/tiny_creatures/derived/fallen_valkyrie.png is the angel
+  tile (column 5, row 3) with the hair recolored blonde and the wings removed
+  (same CC0 license).
+
+
+HUD HEARTS & PICKUPS: "Pixel Platformer" (1.2) by Kenney (www.kenney.nl)
+  Source: https://opengameart.org/content/pixel-platformer-0
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sprites/kenney_pixel_platformer/ (original tilemap_packed.png + License.txt)

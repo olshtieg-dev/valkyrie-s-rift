@@ -1,0 +1,74 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
+[ext_resource type="Script" uid="uid://d3qtij6411bpw" path="res://scripts/scorelabel.gd" id="2_score"]
+[ext_resource type="Script" uid="uid://7rcyermxlsck" path="res://scripts/wings_label.gd" id="3_wings"]
+[ext_resource type="Script" uid="uid://sd1ittik87ek" path="res://scripts/lives_label.gd" id="4_lives"]
+[ext_resource type="PackedScene" uid="uid://bk2oju28k1hvc" path="res://scenes/switch_sword_button.tscn" id="5_sword"]
+[ext_resource type="FontFile" uid="uid://bdobgeouxhony" path="res://assets/fonts/PixelOperator8.ttf" id="6_font"]
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="ScoreLabel" type="Label" parent="."]
+custom_minimum_size = Vector2(10, 10)
+offset_left = 4.0
+offset_top = -1.0
+offset_right = 254.0
+offset_bottom = 20.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 19
+text = "Score:"
+script = ExtResource("2_score")
+
+[node name="WingsLabel" type="Label" parent="."]
+custom_minimum_size = Vector2(10, 10)
+offset_left = 225.0
+offset_top = 2.0
+offset_right = 304.0
+offset_bottom = 20.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 19
+horizontal_alignment = 1
+script = ExtResource("3_wings")
+
+[node name="LivesLabel" type="Label" parent="."]
+custom_minimum_size = Vector2(10, 10)
+offset_left = 2.0
+offset_top = 22.0
+offset_right = 252.0
+offset_bottom = 43.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 19
+script = ExtResource("4_lives")
+
+[node name="SwitchSwordButton" parent="." instance=ExtResource("5_sword")]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -100.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 100.0
+grow_horizontal = 0
+toggle_mode = true
+button_mask = 3
+stretch_mode = 0
+
+[node name="TitleLabel" type="Label" parent="."]
+modulate = Color(1, 1, 1, 0)
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 96.0
+offset_bottom = 132.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.94, 0.8, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_fonts/font = ExtResource("6_font")
+theme_override_font_sizes/font_size = 24
+horizontal_alignment = 1

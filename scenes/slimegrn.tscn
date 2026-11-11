@@ -48,7 +48,7 @@ size = Vector2(10, 12)
 
 [node name="slimegrn" type="CharacterBody2D" unique_id=757951087]
 collision_layer = 4
-collision_mask = 1
+collision_mask = 33
 script = ExtResource("1_mvw2q")
 
 [node name="BodyCollisionShape2D" type="CollisionShape2D" parent="."]
@@ -77,4 +77,5 @@ target_position = Vector2(-10, 0)
 
 [node name="RayCastDown" type="RayCast2D" parent="." unique_id=1400912457]
 position = Vector2(6, 10)
+collision_mask = 33
 target_position = Vector2(0, 16)

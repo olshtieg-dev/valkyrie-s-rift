@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="TileTheme" format=3]
+
+[ext_resource type="Script" path="res://scripts/level/tile_theme.gd" id="1_theme"]
+
+[resource]
+script = ExtResource("1_theme")
+surface = Vector2i(4, 0)
+fill = Array[Vector2i]([Vector2i(5, 1), Vector2i(4, 1), Vector2i(5, 1)])
+platform = Vector2i(10, 2)
+hazard_top = Vector2i(4, 13)
+hazard_fill = Vector2i(4, 14)
+background = Vector2i(5, 1)
+background_tint = Color(0.3, 0.13, 0.13, 1)
+decor = Array[Vector2i]([Vector2i(7, 5), Vector2i(8, 5), Vector2i(7, 6), Vector2i(8, 6), Vector2i(5, 8)])
+decor_chance = 0.07
