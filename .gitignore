@@ -1,3 +1,6 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Per-machine editor settings (each collaborator sets their own)
+.vscode/settings.json
