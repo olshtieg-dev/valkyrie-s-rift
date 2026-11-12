@@ -1,0 +1,54 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/parallax_backdrop.gd" id="1_backdrop"]
+[ext_resource type="Script" path="res://scripts/fx/parallax_motes.gd" id="2_motes"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/yggdrasil/0_trunks_far.png" id="3_layer0"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/yggdrasil/1_trunk_mid.png" id="4_layer1"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/yggdrasil/2_roots_near.png" id="5_layer2"]
+
+[node name="YggdrasilBackdrop" type="Node2D"]
+script = ExtResource("1_backdrop")
+bottom_color = Color(0.07, 0.08, 0.05, 1)
+top_color = Color(0.3, 0.32, 0.18, 1)
+screen_shade = -0.12
+
+[node name="TrunksFar" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.08, 0.08)
+repeat_size = Vector2(384, 432)
+
+[node name="Sprite" type="Sprite2D" parent="TrunksFar"]
+texture = ExtResource("3_layer0")
+centered = false
+
+[node name="TrunkMid" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.2, 0.2)
+repeat_size = Vector2(384, 432)
+
+[node name="Sprite" type="Sprite2D" parent="TrunkMid"]
+texture = ExtResource("4_layer1")
+centered = false
+
+[node name="RootsNear" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.4, 0.4)
+repeat_size = Vector2(384, 432)
+
+[node name="Sprite" type="Sprite2D" parent="RootsNear"]
+texture = ExtResource("5_layer2")
+centered = false
+
+[node name="Leaves" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.7, 0.7)
+repeat_size = Vector2(192, 216)
+repeat_times = 3
+
+[node name="Motes" type="Node2D" parent="Leaves"]
+script = ExtResource("2_motes")
+region = Vector2(192, 216)
+count = 16
+velocity = Vector2(5, 9)
+velocity_jitter = Vector2(4, 3)
+sway = 5.0
+sway_speed = 1.2
+size = Vector2i(2, 1)
+colors = PackedColorArray(0.42, 0.45, 0.2, 1, 0.55, 0.47, 0.2, 1, 0.3, 0.38, 0.17, 1)
+twinkle = 0.0

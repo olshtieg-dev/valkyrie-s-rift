@@ -1,0 +1,55 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/parallax_backdrop.gd" id="1_backdrop"]
+[ext_resource type="Script" path="res://scripts/fx/parallax_motes.gd" id="2_motes"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/sky/0_strata.png" id="3_layer0"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/sky/1_islands.png" id="4_layer1"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/sky/2_clouds_near.png" id="5_layer2"]
+
+[node name="SkyBackdrop" type="Node2D"]
+script = ExtResource("1_backdrop")
+bottom_color = Color(0.5, 0.6, 0.74, 1)
+top_color = Color(0.27, 0.38, 0.62, 1)
+screen_shade = 0.1
+
+[node name="Strata" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.05, 0.05)
+repeat_size = Vector2(384, 432)
+
+[node name="Sprite" type="Sprite2D" parent="Strata"]
+texture = ExtResource("3_layer0")
+centered = false
+
+[node name="Islands" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.15, 0.15)
+repeat_size = Vector2(384, 432)
+
+[node name="Sprite" type="Sprite2D" parent="Islands"]
+texture = ExtResource("4_layer1")
+centered = false
+
+[node name="CloudsNear" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.35, 0.35)
+repeat_size = Vector2(384, 432)
+autoscroll = Vector2(4, 0)
+
+[node name="Sprite" type="Sprite2D" parent="CloudsNear"]
+texture = ExtResource("5_layer2")
+centered = false
+
+[node name="Wind" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.7, 0.7)
+repeat_size = Vector2(192, 216)
+repeat_times = 3
+
+[node name="Motes" type="Node2D" parent="Wind"]
+script = ExtResource("2_motes")
+region = Vector2(192, 216)
+count = 10
+velocity = Vector2(70, 0)
+velocity_jitter = Vector2(25, 1)
+sway = 0.0
+sway_speed = 0.0
+size = Vector2i(10, 1)
+colors = PackedColorArray(0.88, 0.92, 0.97, 0.35, 0.88, 0.92, 0.97, 0.22)
+twinkle = 0.25

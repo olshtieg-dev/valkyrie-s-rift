@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="TileTheme" format=3]
 
 [ext_resource type="Script" path="res://scripts/level/tile_theme.gd" id="1_theme"]
+[ext_resource type="PackedScene" path="res://scenes/backgrounds/sky_backdrop.tscn" id="2_parallax"]
 
 [resource]
 script = ExtResource("1_theme")
@@ -9,5 +10,7 @@ fill = Array[Vector2i]([Vector2i(6, 2)])
 platform = Vector2i(10, 1)
 background = Vector2i(6, 2)
 background_tint = Color(0.5, 0.6, 0.75, 1)
+parallax = ExtResource("2_parallax")
+background_reach = 2
 decor = Array[Vector2i]([])
 decor_chance = 0.0

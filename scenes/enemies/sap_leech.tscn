@@ -1,0 +1,29 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/sap_leech.gd" id="1_ai"]
+[ext_resource type="Texture2D" path="res://assets/sprites/0x72_dungeontileset_ii/derived/sap_leech.png" id="2_sheet"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(10, 10)
+
+[node name="SapLeech" type="CharacterBody2D" node_paths=PackedStringArray("sprite")]
+collision_layer = 4
+collision_mask = 33
+script = ExtResource("1_ai")
+max_health = 30
+knockback_resist = 1.0
+spawn_placement = 2
+surface_offset = 5.0
+hurtbox_size = Vector2(16, 12)
+hurtbox_offset = Vector2(0, 0)
+anim_fps = 6.0
+sprite = NodePath("Sprite2D")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, 0)
+texture = ExtResource("2_sheet")
+hframes = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 0)
+shape = SubResource("RectangleShape2D_body")

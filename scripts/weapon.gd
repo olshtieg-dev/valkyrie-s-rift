@@ -16,6 +16,12 @@ class_name Weapon
 ## Set by the player when equipped. Supplies damage, element and heavy hits;
 ## without it the exported `damage` is used and hits are plain.
 var data: WeaponData
+## Set per swing by the player (sword-rotation combo bonus).
+var damage_mult := 1.0
+
+## First thing this swing actually hit (once per swing).
+signal landed(target: Node)
+var _landed_this_swing := false
 
 func _ready() -> void:
 	# Safety check in case you forget to assign the node in Inspector
@@ -33,6 +39,7 @@ func _ready() -> void:
 	
 	if sword_sprite:
 		sword_sprite.visible = false
+		_apply_swing_texture()
 
 	_disable_hitbox()
 	
@@ -42,9 +49,11 @@ func _ready() -> void:
 	if anim_player:
 		anim_player.animation_finished.connect(_on_animation_finished)
 
-func swing() -> bool:
+## `speed` = playback rate (the sword's attack_speed).
+func swing(speed: float = 1.0) -> bool:
 	if not anim_player or anim_player.is_playing():
 		return false
+	_landed_this_swing = false
 	
 	# Fix: Make the sword visible when the swing starts
 	if sword_sprite:
@@ -54,8 +63,24 @@ func swing() -> bool:
 	call_deferred("_apply_hits_from_overlaps")
 	
 	var animation_to_play: StringName = attack_animation if anim_player.has_animation(attack_animation) else anim_player.get_animation_list()[0]
-	anim_player.play(animation_to_play)
+	anim_player.play(animation_to_play, -1, speed)
+	Sfx.play(Sfx.swing_id(data), -1.0, 0.0, lerpf(1.0, speed, 0.3))
 	return true
+
+
+## Seconds the current swing animation lasts at `speed`.
+func swing_duration(speed: float = 1.0) -> float:
+	if not anim_player:
+		return 0.0
+	var anim_name: StringName = attack_animation if anim_player.has_animation(attack_animation) else anim_player.get_animation_list()[0]
+	return anim_player.get_animation(anim_name).length / maxf(speed, 0.01)
+
+
+## Ends the swing at once (switching swords mid-swing).
+func cancel_swing() -> void:
+	if anim_player and anim_player.is_playing():
+		anim_player.stop()
+	_on_animation_finished(&"")
 
 func is_swinging() -> bool:
 	return anim_player != null and anim_player.is_playing()
@@ -75,14 +100,19 @@ func _on_area_entered(area: Area2D) -> void:
 
 func _apply_hit(target: Node2D) -> bool:
 	if target == owner or target.is_in_group("player"): return false # Don't hit yourself
-	return Hit.deliver(target, make_hit())
+	var delivered := Hit.deliver(target, make_hit())
+	if delivered and not _landed_this_swing:
+		_landed_this_swing = true
+		Sfx.play(Sfx.hit_id(data))
+		landed.emit(target)
+	return delivered
 
 
 func make_hit() -> Hit:
 	var knockback := global_transform.x.normalized() * knockback_force
 	if data:
-		return Hit.make(data.damage, knockback, data.element, data.heavy_hits, self)
-	return Hit.make(damage, knockback, Hit.Element.NONE, false, self)
+		return Hit.make(roundi(data.damage * damage_mult), knockback * damage_mult, data.element, data.heavy_hits, self)
+	return Hit.make(roundi(damage * damage_mult), knockback, Hit.Element.NONE, false, self)
 
 func _apply_hits_from_overlaps() -> void:
 	var hit_any := false
@@ -111,3 +141,16 @@ func _disable_hitbox() -> void:
 	
 	
 	
+
+
+## The sword scenes' art is a 32px diagonal blade (grip at the sprite origin,
+## pointing up-right). A sword's own `swing_texture` is drawn blade-up at 1:1,
+## so stand it on its grip and lean it the same 45 degrees.
+func _apply_swing_texture() -> void:
+	if data == null or data.swing_texture == null:
+		return
+	var tex := data.swing_texture
+	sword_sprite.texture = tex
+	sword_sprite.scale = Vector2.ONE
+	sword_sprite.offset = Vector2(0, -(tex.get_height() / 2.0 - 1.0))
+	sword_sprite.rotation += PI / 4.0

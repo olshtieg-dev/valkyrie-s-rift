@@ -55,6 +55,7 @@ func _ai(delta: float) -> void:
 				facing = -_wall_side
 				velocity = Vector2(facing * lunge_velocity.x, lunge_velocity.y)
 				sprite.rotation = 0.0
+				play_sfx(&"enemy_lunge", 1.1)
 				_go(State.LUNGE)
 		State.LUNGE:
 			apply_gravity(delta)
@@ -75,6 +76,11 @@ func _ray(offset: Vector2, from_offset: Vector2 = Vector2.ZERO) -> bool:
 	var query := PhysicsRayQueryParameters2D.create(from, from + offset, WORLD_MASK)
 	query.exclude = [get_rid()]
 	return not get_world_2d().direct_space_state.intersect_ray(query).is_empty()
+
+
+## Frozen while clinging, the ice stays stuck to the wall.
+func _frozen_falls() -> bool:
+	return uses_gravity
 
 
 func _go(s: State) -> void:

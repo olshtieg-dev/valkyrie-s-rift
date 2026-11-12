@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ArmorData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/armor_data.gd" id="1_ggywb"]
+
+[resource]
+script = ExtResource("1_ggywb")
+id = &"valkyrie_plate"
+display_name = "Valkyrie Plate"
+description = "The armor she fell in. No resistances, no burden."
+icon_color = Color(0.78, 0.82, 0.9, 1)

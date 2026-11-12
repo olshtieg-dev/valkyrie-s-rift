@@ -1,0 +1,30 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/gale_hawk.gd" id="1_ai"]
+[ext_resource type="Texture2D" path="res://assets/sprites/tiny_creatures/tilemap_packed.png" id="2_sheet"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(10, 10)
+
+[node name="GaleHawk" type="CharacterBody2D" node_paths=PackedStringArray("sprite")]
+collision_layer = 4
+collision_mask = 33
+script = ExtResource("1_ai")
+max_health = 30
+spawn_placement = 3
+surface_offset = 0.0
+uses_gravity = false
+hurtbox_size = Vector2(12, 12)
+hurtbox_offset = Vector2(0, 0)
+sprite = NodePath("Sprite2D")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, 0)
+texture = ExtResource("2_sheet")
+hframes = 1
+region_enabled = true
+region_rect = Rect2(64, 208, 16, 16)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 0)
+shape = SubResource("RectangleShape2D_body")

@@ -22,6 +22,7 @@ func _ai(delta: float) -> void:
 			play_row(1)
 			if is_on_floor() and state_time > 0.2 and can_see_player(trigger_range):
 				face_player()
+				play_sfx(&"enemy_swell", 1.2)
 				_go(State.WINDUP)
 		State.WINDUP:
 			velocity.x = 0.0
@@ -30,6 +31,7 @@ func _ai(delta: float) -> void:
 			if state_time >= windup_time:
 				velocity = Vector2(clampf(to_player().x * 1.8, -max_hop_x, max_hop_x), hop_y)
 				sprite.scale = Vector2(0.85, 1.15)
+				play_sfx(&"enemy_hop")
 				_go(State.AIR)
 		State.AIR:
 			if is_on_floor() and velocity.y >= 0.0 and state_time > 0.1:

@@ -1,0 +1,29 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/bark_beetle.gd" id="1_ai"]
+[ext_resource type="Texture2D" path="res://assets/sprites/tiny_creatures/tilemap_packed.png" id="2_sheet"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(12, 10)
+
+[node name="BarkBeetle" type="CharacterBody2D" node_paths=PackedStringArray("sprite")]
+collision_layer = 4
+collision_mask = 33
+script = ExtResource("1_ai")
+max_health = 30
+armor_tint = Color(0.74, 0.42, 0.29, 1)
+hurtbox_size = Vector2(14, 11)
+hurtbox_offset = Vector2(0, 6)
+bob_pixels = 0
+sprite = NodePath("Sprite2D")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, 4)
+texture = ExtResource("2_sheet")
+hframes = 1
+region_enabled = true
+region_rect = Rect2(48, 224, 16, 16)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 6)
+shape = SubResource("RectangleShape2D_body")

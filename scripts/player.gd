@@ -48,6 +48,23 @@ const SWORD_ART_ANGLE = -PI / 4.0   # the sword art points up-right
 # --- Directional slashes: hold up to slash overhead ---
 const RECOIL_SPEED = 150.0
 
+# --- Attack flow & attack movement ---
+# Attack presses are buffered briefly so mashing never drops a swing.
+# Switching swords mid-swing cancels it: rotating through her swords is the
+# fastest way to keep slashing, and each hit with a *different* sword than the
+# last (within ROTATION_WINDOW) builds the rotation chain: +25% / +50% damage.
+const ATTACK_BUFFER_TIME = 0.15
+const ATTACK_RECOVERY = 0.06       # after the swing, divided by attack_speed
+const ROTATION_WINDOW = 0.8
+const ROTATION_STEP = 0.25
+const ROTATION_MAX_STEPS = 2
+const LUNGE_TIME = 0.14
+const AIR_HIT_HOVER = -70.0        # landing a hit in the air holds her up
+const LUNGE_TINT = Color(0.7, 0.9, 1.0, 0.5)
+const RISE_TINT = Color(1.0, 0.95, 0.7, 0.5)
+## How much running momentum adds to jump height (0 = none, 1 = fully).
+const JUMP_MOMENTUM_SHARE = 0.1
+
 # --- Flutter Settings ---
 const FLUTTER_KICK = -150.0
 const FLUTTER_DURATION = 0.4
@@ -70,6 +87,7 @@ signal wings_updated(count)
 signal health_updated(count)
 signal weapon_switched(is_sword_1) # kept for the old HUD button
 signal weapon_changed(data: WeaponData, slot: int)
+signal armor_changed(data: ArmorData)
 
 var jump_hold_timer = 0.0
 var is_jumping = false
@@ -85,11 +103,31 @@ var hazard_cooldown = 0.0
 var hazard_sensor: Area2D
 var hurt_stun_timer = 0.0
 var _hurt_glow: Tween
+# --- ELEMENT STATUS (from ice/thunder hits; armor resistance shortens them) ---
+## Ice hits chill her: slower running for a moment, frosted blue.
+const CHILL_TIME := 1.6
+const CHILL_SPEED := 0.6
+const CHILL_TINT := Color(0.7, 0.85, 1.15)
+## Thunder hits jolt her broken wings: one flutter charge lost (unless her
+## armor resists thunder by half or more) and a slightly longer stun.
+const JOLT_STUN := 0.15
+var chill_timer := 0.0
+var _chill_fx := 0.0
 var attack_lock_timer = 0.0     # meteor landing lag
 var meteor_windup_timer = 0.0
 var meteor_trail_timer = 0.0
 var meteor_sword: Sprite2D
 var weapon_anchor_base := Vector2.ZERO
+var attack_buffer := 0.0
+var attack_cooldown := 0.0
+var air_lift_ready := true      # rising slash, once per airtime
+var air_lunge_ready := true     # air lunge, once per airtime
+var lunge_timer := 0.0
+var _trail_timer := 0.0
+var rotation_chain := 0
+var _last_hit_weapon: WeaponData
+var _last_hit_time := -10.0
+var _sfx_on_floor := true       # for the landing sound
 
 const HEART := 2                            # health is in half-hearts
 const HURT_GLOW := Color(2.4, 0.55, 0.5)   # overbright red flash on hit
@@ -100,9 +138,16 @@ const BLINK_INTERVAL := 0.07                # i-frame flicker
 
 @export_group("Stats")
 ## Health is counted in HALF-hearts: 2 = one heart. Enemy contact and most
-## hazards deal 2. Heart containers (add_heart_container) raise max_health.
+## hazards deal 2. Heart containers (add_heart_container) raise
+## base_max_health; max_health = that + the armor's bonus hearts.
 @export var max_health: int = 6
 @export var starting_health: int = 6
+## What she wears. Purely defensive: resistances, bonus hearts and feathers.
+@export var armor: ArmorData = preload("res://data/armor/valkyrie_plate.tres")
+var base_max_health := 6
+## Fractions of a half-heart that resistance shaved off, carried to the next
+## hit so 25% off a 2-damage blow really averages 1.5.
+var _damage_carry := 0.0
 @export var damage_invulnerability_time: float = 1.0
 ## Hit reaction: launched away from the source, steering locked briefly.
 @export var hurt_knockback: Vector2 = Vector2(190, -210)
@@ -117,12 +162,17 @@ const BLINK_INTERVAL := 0.07                # i-frame flicker
 @onready var dive_attack_shape = $DiveAttackHitbox/CollisionShape2D
 
 # --- SWORD LOADOUT ---
-## She carries up to 3 swords; the switch button cycles them in this order.
+## She carries up to MAX_LOADOUT swords; the switch button cycles them in this order.
 ## Each sword (data/weapons/*.tres) also sets her movement and flutter.
-const MAX_LOADOUT = 3
+## MAX_LOADOUT is the single source of truth for how many swords she carries:
+## pickups, shrines, the HUD and saved state all read it, so change it only here.
+## Separate slots for other kinds of items are planned; give them their own
+## constant beside this one rather than sharing the sword count.
+const MAX_LOADOUT: int = 4
+## She starts with the blade alone; the rest are side-route finds (see
+## LevelRegistry "find") or bought at shrines.
 @export var loadout: Array[WeaponData] = [
 	preload("res://data/weapons/valkyrie_blade.tres"),
-	preload("res://data/weapons/ice_rapier.tres"),
 ]
 var loadout_instances: Array[Node2D] = []
 var active_slot := 0
@@ -136,8 +186,13 @@ func _ready() -> void:
 	add_to_group("player") # Vital for enemies to find you
 
 	var state: Dictionary = GameManager.player_state
-	max_health = state.get("max_health", max_health)
-	current_health = clampi(state.get("health", starting_health), 1, max_health)
+	base_max_health = state.get("max_health", max_health)
+	if state.get("armor", "") != "":
+		var worn := load(state["armor"]) as ArmorData
+		if worn:
+			armor = worn
+	_apply_armor_stats()
+	current_health = clampi(state.get("health", max_health), 1, max_health)
 	flutter_bonus = state.get("flutter_bonus", 0)
 	last_safe_position = global_position
 	_setup_hazard_sensor()
@@ -158,6 +213,7 @@ func _ready() -> void:
 		sword_switcher.pressed.connect(_on_sword_switch_requested)
 	
 	weapon_anchor_base = weapon_anchor.position
+	animated_sprite.frame_changed.connect(_sfx_footstep)
 	meteor_sword = Sprite2D.new()
 	meteor_sword.name = "MeteorSword"
 	meteor_sword.texture = METEOR_SWORD_TEXTURE
@@ -167,6 +223,7 @@ func _ready() -> void:
 	pivot.add_child(meteor_sword)
 
 	# --- LOADOUT SETUP ---
+	var start_loadout := loadout
 	if state.has("loadout"):
 		var carried: Array[WeaponData] = []
 		for path: String in state["loadout"]:
@@ -174,18 +231,12 @@ func _ready() -> void:
 			if data:
 				carried.append(data)
 		if not carried.is_empty():
-			loadout = carried
-	loadout = loadout.slice(0, MAX_LOADOUT)
+			start_loadout = carried
+	set_loadout(start_loadout, state.get("weapon_slot", 0))
 	for data in loadout:
-		var inst: Node2D = data.scene.instantiate()
-		if "data" in inst:
-			inst.data = data
-		weapon_anchor.add_child(inst)
-		_disable_weapon(inst)
-		loadout_instances.append(inst)
-	weapon_1_instance = loadout_instances[0] if loadout_instances.size() > 0 else null
-	weapon_2_instance = loadout_instances[1] if loadout_instances.size() > 1 else null
-	_equip(clampi(state.get("weapon_slot", 0), 0, loadout.size() - 1), true)
+		GameManager.own_weapon(data)
+	GameManager.own_armor(armor)
+	animated_sprite.self_modulate = armor.tint if armor else Color.WHITE
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
@@ -195,6 +246,8 @@ func _physics_process(delta: float) -> void:
 		damage_invulnerability_timer = max(0.0, damage_invulnerability_timer - delta)
 	if hurt_stun_timer > 0.0:
 		hurt_stun_timer = max(0.0, hurt_stun_timer - delta)
+	if chill_timer > 0.0:
+		_update_chill(delta)
 	if attack_lock_timer > 0.0:
 		attack_lock_timer = max(0.0, attack_lock_timer - delta)
 	_update_iframe_blink()
@@ -211,16 +264,31 @@ func _physics_process(delta: float) -> void:
 
 	# --- 0. Attack Input & Weapon Switching ---
 	if Input.is_action_just_pressed("switch_weapon"):
-		_on_sword_switch_requested()
+		switch_sword(1)
+	if InputMap.has_action("switch_weapon_prev") and Input.is_action_just_pressed("switch_weapon_prev"):
+		switch_sword(-1)
 
-	if Input.is_action_just_pressed("attack") and hurt_stun_timer <= 0.0 and attack_lock_timer <= 0.0:
+	if attack_cooldown > 0.0:
+		attack_cooldown = maxf(0.0, attack_cooldown - delta)
+	if Input.is_action_just_pressed("attack"):
+		attack_buffer = ATTACK_BUFFER_TIME
+	elif attack_buffer > 0.0:
+		attack_buffer = maxf(0.0, attack_buffer - delta)
+	if attack_buffer > 0.0 and _can_attack():
+		attack_buffer = 0.0
 		if can_start_dive_attack():
 			start_dive_attack()
-		elif not is_dive_attacking:
+		else:
 			execute_attack(_attack_direction())
 
+	_dash_input(delta) # DASH STRIKE
+
 	# --- 1. Gravity & Air Logic ---
-	if not is_on_floor():
+	if dash_timer > 0.0:
+		_dash_step(delta) # DASH STRIKE: gravity suspended
+	elif not is_on_floor() and lunge_timer > 0.0:
+		_lunge_step(delta)
+	elif not is_on_floor():
 		if is_dive_attacking:
 			is_fluttering = false
 			is_jumping = false
@@ -268,7 +336,9 @@ func _physics_process(delta: float) -> void:
 		is_dive_attacking = false
 		is_fluttering = false
 		is_jumping = false
-		current_momentum = move_toward(current_momentum, 1.0, delta * 3.0)
+		lunge_timer = 0.0
+		air_lift_ready = true
+		air_lunge_ready = true
 		
 		if flutter_charges_left < max_flutter_charges:
 			flutter_charges_left = max_flutter_charges 
@@ -280,15 +350,24 @@ func _physics_process(delta: float) -> void:
 	if hurt_stun_timer > 0.0:
 		# Knocked back: no steering, just a little air drag.
 		velocity.x = move_toward(velocity.x, 0, FRICTION * weapon_data.traction * 0.25 * delta)
+	elif dash_timer > 0.0:
+		pass # DASH STRIKE carries her; no steering
 	elif is_dive_attacking:
 		velocity.x = 0.0 # the meteor falls straight
+	elif lunge_timer > 0.0:
+		pass # the lunge carries her; no steering
 	elif attack_lock_timer > 0.0:
 		velocity.x = move_toward(velocity.x, 0, FRICTION * weapon_data.traction * delta)
 	elif direction != 0:
 		if is_on_floor():
-			current_momentum = move_toward(current_momentum, MAX_MOMENTUM_BONUS, delta * MOMENTUM_GAIN_RATE * weapon_data.momentum_gain)
+			if signf(velocity.x) != signf(direction) and absf(velocity.x) > 20.0:
+				current_momentum = 1.0 # turning around loses the run-up
+			else:
+				current_momentum = move_toward(current_momentum, MAX_MOMENTUM_BONUS, delta * MOMENTUM_GAIN_RATE * weapon_data.momentum_gain)
 
 		var target_speed = min(BASE_SPEED * weapon_data.top_speed * current_momentum, MAX_SPEED * weapon_data.top_speed)
+		if chill_timer > 0.0:
+			target_speed *= CHILL_SPEED
 		var accel: float = ACCELERATION * weapon_data.acceleration
 		# Reversing against current speed is a matter of grip: low traction slides.
 		if signf(velocity.x) != signf(direction) and absf(velocity.x) > 20.0:
@@ -302,19 +381,26 @@ func _physics_process(delta: float) -> void:
 			pivot.scale.x = -1
 	else:
 		velocity.x = move_toward(velocity.x, 0, FRICTION * weapon_data.traction * delta)
+		if is_on_floor():
+			current_momentum = move_toward(current_momentum, 1.0, delta * 3.0)
 
 	# --- 3. Initial Jump / Drop-through ---
 	if Input.is_action_just_pressed("jump") and is_on_floor() and hurt_stun_timer <= 0.0 and attack_lock_timer <= 0.0:
 		if Input.is_action_pressed("move_down") and _is_standing_on_one_way():
 			_start_drop_through()
 		else:
-			velocity.y = BASE_JUMP_VELOCITY * current_momentum
+			# Height comes from the sword; a full run-up adds a little.
+			velocity.y = BASE_JUMP_VELOCITY * weapon_data.jump_height \
+					* (1.0 + (current_momentum - 1.0) * JUMP_MOMENTUM_SHARE)
 			jump_hold_timer = MAX_JUMP_TIME
 			is_jumping = true
+			Sfx.play(&"jump")
 
 	# --- 4. Animation ---
 	_handle_animations()
+	var sfx_fall_speed: float = velocity.y
 	move_and_slide()
+	_sfx_landing(sfx_fall_speed)
 	_update_last_safe_position()
 
 func _handle_animations() -> void:
@@ -353,16 +439,101 @@ func _attack_direction() -> Vector2:
 	return Vector2.UP if Input.is_action_pressed("move_up") else Vector2.RIGHT
 
 
+func _can_attack() -> bool:
+	return hurt_stun_timer <= 0.0 and attack_lock_timer <= 0.0 and attack_cooldown <= 0.0 \
+			and not is_dive_attacking and active_weapon != null \
+			and not (active_weapon.has_method("is_swinging") and active_weapon.is_swinging())
+
+
 func execute_attack(dir: Vector2 = Vector2.RIGHT):
 	if not active_weapon or not active_weapon.has_method("swing"):
 		return
 	if active_weapon.has_method("is_swinging") and active_weapon.is_swinging():
 		return
 	_aim_weapon(dir)
-	if active_weapon.swing():
-		# Forward lunge (sword 2's thrust) only applies to slashes in front.
-		if dir == Vector2.RIGHT and active_weapon.has_method("get_attack_thrust"):
-			velocity += active_weapon.get_attack_thrust(pivot.scale.x)
+	var speed: float = weapon_data.attack_speed
+	if "damage_mult" in active_weapon:
+		active_weapon.damage_mult = _rotation_mult()
+	if not active_weapon.swing(speed):
+		return
+	if active_weapon.has_method("swing_duration"):
+		attack_cooldown = active_weapon.swing_duration(speed) + ATTACK_RECOVERY / speed
+	if dir == Vector2.UP:
+		_rising_slash()
+	elif not is_on_floor() and weapon_data.lunge_speed > 0.0 and air_lunge_ready:
+		_start_lunge()
+	elif dir == Vector2.RIGHT and active_weapon.has_method("get_attack_thrust"):
+		# Forward step of a thrusting sword's ground attack.
+		velocity += active_weapon.get_attack_thrust(pivot.scale.x)
+
+
+## Up + attack: a launcher on the ground, an air boost once per airtime.
+func _rising_slash() -> void:
+	if weapon_data.rising_lift <= 0.0:
+		return
+	if not is_on_floor():
+		if not air_lift_ready:
+			return
+		air_lift_ready = false
+	velocity.y = minf(velocity.y, -weapon_data.rising_lift)
+	is_jumping = false
+	is_fluttering = false
+	_trail_timer = 0.0
+	CombatFX.afterimage(animated_sprite, RISE_TINT)
+
+
+## Side attack in the air with a thrusting sword: a short gravity-free dash.
+func _start_lunge() -> void:
+	air_lunge_ready = false
+	lunge_timer = LUNGE_TIME
+	is_jumping = false
+	is_fluttering = false
+	velocity = Vector2(signf(pivot.scale.x) * weapon_data.lunge_speed, 0.0)
+	_trail_timer = 0.0
+
+
+func _lunge_step(delta: float) -> void:
+	lunge_timer -= delta
+	velocity.y = 0.0
+	if is_on_wall():
+		lunge_timer = 0.0
+	_trail_timer -= delta
+	if _trail_timer <= 0.0:
+		_trail_timer = 0.03
+		CombatFX.afterimage(animated_sprite, LUNGE_TINT)
+	if lunge_timer <= 0.0:
+		lunge_timer = 0.0
+		velocity.x *= 0.6 # keep some carry, then air steering takes over
+
+
+## Damage multiplier for the swing about to start: bonus only when this sword
+## differs from the one that landed the previous hit, inside the window.
+func _rotation_mult() -> float:
+	var now := Time.get_ticks_msec() / 1000.0
+	if _last_hit_weapon and _last_hit_weapon != weapon_data and now - _last_hit_time < ROTATION_WINDOW:
+		return 1.0 + ROTATION_STEP * mini(rotation_chain + 1, ROTATION_MAX_STEPS)
+	return 1.0
+
+
+## A swing connected with an enemy: track the rotation chain, and in the air
+## hold her up and refresh the rising slash and lunge (keep the combo airborne).
+func _on_weapon_landed(target: Node, weapon: Node) -> void:
+	if weapon != active_weapon or not target.is_in_group("enemy"):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if _last_hit_weapon and _last_hit_weapon != weapon_data and now - _last_hit_time < ROTATION_WINDOW:
+		rotation_chain = mini(rotation_chain + 1, ROTATION_MAX_STEPS)
+		CombatFX.burst(self, (target as Node2D).global_position, 8.0 + 4.0 * rotation_chain,
+				weapon_data.tint.lerp(Color(1, 0.85, 0.4), 0.5), 1.0, 3 + 2 * rotation_chain, 0.18)
+	else:
+		rotation_chain = 0
+	_last_hit_weapon = weapon_data
+	_last_hit_time = now
+	if not is_on_floor():
+		air_lift_ready = true
+		air_lunge_ready = true
+		if lunge_timer <= 0.0:
+			velocity.y = minf(velocity.y, AIR_HIT_HOVER)
 
 
 ## Rotates the whole swing (sword, arc and hitbox) about her center. The pivot
@@ -377,10 +548,30 @@ func _aim_weapon(dir: Vector2) -> void:
 func recoil(dir: float) -> void:
 	if is_dead:
 		return
+	_end_dash(0.0) # DASH STRIKE: bounced off armor
 	velocity.x = dir * RECOIL_SPEED
+	Sfx.play(&"deflect")
 	if not is_on_floor():
 		velocity.y = minf(velocity.y, -60.0)
 	attack_lock_timer = maxf(attack_lock_timer, 0.12)
+
+
+## Launched by something springy (a soft slime boulder): like a landing,
+## it refreshes flutters and air moves.
+func spring(vy: float) -> void:
+	if is_dead:
+		return
+	_end_meteor()
+	_end_dash(0.0) # DASH STRIKE
+	velocity.y = vy
+	Sfx.play(&"spring")
+	is_jumping = false
+	is_fluttering = false
+	lunge_timer = 0.0
+	air_lift_ready = true
+	air_lunge_ready = true
+	flutter_charges_left = max_flutter_charges
+	wings_updated.emit(flutter_charges_left)
 
 
 func can_start_dive_attack() -> bool:
@@ -393,6 +584,7 @@ func start_dive_attack():
 	meteor_windup_timer = METEOR_WINDUP
 	meteor_trail_timer = 0.0
 	velocity = Vector2(0, -50) # a little hitch upward sells the windup
+	Sfx.play(&"meteor_windup", -1.0, 0.0, 0.75)
 	_set_dive_attack_hitbox_enabled(false)
 	# Sword flips from overhead to straight down during the windup.
 	meteor_sword.visible = true
@@ -410,6 +602,7 @@ func _meteor_step(delta: float) -> void:
 		if meteor_windup_timer <= 0.0:
 			velocity = Vector2(0, METEOR_SPEED)
 			_set_dive_attack_hitbox_enabled(true)
+			Sfx.play(&"meteor_fall")
 			CombatFX.burst(self, global_position + Vector2(0, -6), 10.0, Color(1, 0.9, 0.6), 1.0, 0, 0.12)
 		return
 	velocity = Vector2(0, METEOR_SPEED)
@@ -424,6 +617,7 @@ func _end_meteor() -> void:
 	is_dive_attacking = false
 	meteor_windup_timer = 0.0
 	_set_dive_attack_hitbox_enabled(false)
+	Sfx.stop(&"meteor_fall")
 	if meteor_sword:
 		meteor_sword.visible = false
 
@@ -434,15 +628,17 @@ func _land_dive_attack():
 	if not was_plunging:
 		return
 	attack_lock_timer = METEOR_LAND_LAG
-	CombatFX.burst(self, global_position, METEOR_SHOCK_RADIUS, Color(1, 0.85, 0.55), 0.3, 10, 0.3)
-	CombatFX.shake(self, 3.0, 0.2)
+	_sfx_meteor_impact()
+	var radius := METEOR_SHOCK_RADIUS * weapon_data.meteor_power
+	CombatFX.burst(self, global_position, radius, Color(1, 0.85, 0.55), 0.3, 10, 0.3)
+	CombatFX.shake(self, 3.0 * weapon_data.meteor_power, 0.2)
 	# Shockwave: hurts grounded enemies nearby. Armor ignores it; only a direct
 	# meteor hit breaks armor.
 	for enemy in get_tree().get_nodes_in_group("enemy"):
 		if not enemy is Node2D or enemy.get("is_dying") or enemy.get("armored"):
 			continue
 		var d: Vector2 = (enemy as Node2D).global_position - global_position
-		if absf(d.x) <= METEOR_SHOCK_RADIUS and absf(d.y) <= 20.0 and enemy.has_method("take_damage"):
+		if absf(d.x) <= radius and absf(d.y) <= 20.0 and enemy.has_method("take_damage"):
 			Hit.deliver(enemy, Hit.make(METEOR_SHOCK_DAMAGE, Vector2(signf(d.x), -1.0) * 200.0, weapon_data.element, false, self))
 
 
@@ -468,23 +664,36 @@ func _apply_dive_attack_hit(target: Node) -> void:
 	var hit := Hit.make(DIVE_ATTACK_DAMAGE, Vector2.DOWN * DIVE_ATTACK_KNOCKBACK, weapon_data.element, true, self)
 	if not Hit.deliver(target, hit): return
 	_end_meteor()
-	velocity.y = METEOR_BOUNCE
+	Sfx.play(&"meteor_hit")
+	velocity.y = METEOR_BOUNCE * weapon_data.meteor_power
+	air_lift_ready = true
+	air_lunge_ready = true
 	CombatFX.burst(self, global_position + Vector2(0, 6), 14.0, Color(1, 0.95, 0.75), 1.0, 6, 0.2)
 	CombatFX.shake(self, 2.0, 0.12)
 
 # --- HEALTH & DAMAGE ---
 func take_hit(hit: Hit) -> void:
-	take_damage(hit.damage, hit.knockback)
+	take_damage(hit.damage, hit.knockback, hit.element)
 
 
 ## `knockback` gives the push direction (only its x sign matters); with no
-## direction the player is pushed backwards from where she faces.
-func take_damage(amount: int = HEART, knockback: Vector2 = Vector2.ZERO) -> void:
+## direction the player is pushed backwards from where she faces. `element`
+## picks which of the armor's resistances applies (NONE = physical).
+func take_damage(amount: int = HEART, knockback: Vector2 = Vector2.ZERO, element: Hit.Element = Hit.Element.NONE) -> void:
 	if is_dead or amount <= 0: return
 	if DebugMenu.god_mode: return
 	if damage_invulnerability_timer > 0.0: return
+	if dash_guard_timer > 0.0: return # DASH STRIKE: cutting through what she struck
 
-	current_health = max(0, current_health - amount)
+	var dealt := _resisted(amount, element)
+	if dealt <= 0:
+		# Fully absorbed: still knocked back (no standing in lava), no harm.
+		damage_invulnerability_timer = damage_invulnerability_time * 0.5
+		_apply_hurt_knockback(knockback)
+		CombatFX.burst(self, global_position + Vector2(0, -6), 9.0, armor.icon_color.lightened(0.4), 1.0, 4, 0.15)
+		Sfx.play(&"block")
+		return
+	current_health = max(0, current_health - dealt)
 	health_updated.emit(current_health)
 
 	if current_health <= 0:
@@ -493,14 +702,47 @@ func take_damage(amount: int = HEART, knockback: Vector2 = Vector2.ZERO) -> void
 	damage_invulnerability_timer = damage_invulnerability_time
 	_apply_hurt_knockback(knockback)
 	_play_hurt_feedback()
+	Sfx.play(&"hurt")
+	_element_status(element)
+
+
+## Ice chills, thunder jolts; both scale down with the armor's resistance.
+func _element_status(element: Hit.Element) -> void:
+	var resist := armor.resistance(element) if armor else 0.0
+	match element:
+		Hit.Element.ICE:
+			chill_timer = maxf(chill_timer, CHILL_TIME * (1.0 - resist))
+			if chill_timer > 0.0:
+				pivot.modulate = Color(CHILL_TINT, pivot.modulate.a)
+				Sfx.play(&"chill")
+		Hit.Element.THUNDER:
+			hurt_stun_timer += JOLT_STUN * (1.0 - resist)
+			Sfx.play(&"jolt")
+			CombatFX.burst(self, global_position + Vector2(0, -8), 10.0, Color(1.0, 0.95, 0.4), 1.0, 6, 0.2)
+			if resist < 0.5 and flutter_charges_left > 0:
+				flutter_charges_left -= 1
+				wings_updated.emit(flutter_charges_left)
+
+
+func _update_chill(delta: float) -> void:
+	chill_timer = maxf(0.0, chill_timer - delta)
+	_chill_fx -= delta
+	if _chill_fx <= 0.0 and chill_timer > 0.0:
+		_chill_fx = 0.18
+		CombatFX.burst(self, global_position + Vector2(randf_range(-5, 5), -10), 4.0, Color(0.85, 0.95, 1.0), 1.0, 2, 0.25)
+	if chill_timer <= 0.0:
+		pivot.modulate = Color(1, 1, 1, pivot.modulate.a)
 
 
 func _apply_hurt_knockback(knockback: Vector2) -> void:
 	var dir_x := signf(knockback.x)
 	if dir_x == 0.0:
 		dir_x = -signf(pivot.scale.x) if pivot.scale.x != 0 else -1.0
-	velocity = Vector2(dir_x * hurt_knockback.x, hurt_knockback.y)
-	hurt_stun_timer = hurt_stun_time
+	var steady := 1.0 - (armor.stagger_resist if armor else 0.0)
+	_end_dash(0.0) # DASH STRIKE
+	velocity = Vector2(dir_x * hurt_knockback.x, hurt_knockback.y) * steady
+	hurt_stun_timer = hurt_stun_time * steady
+	lunge_timer = 0.0
 	_end_meteor()
 	is_fluttering = false
 	is_jumping = false
@@ -548,6 +790,8 @@ func _die() -> void:
 
 	# Respawn at the level entrance with fresh health; keep wings/weapon.
 	GameManager.player_state.erase("health")
+	Sfx.play(&"death", 0.0, 0.0, 0.7)
+	Sfx.play_after(&"armor_burst", DeathSequence.SHAKE_TIME)
 
 	# Armor shakes apart into feathers, then the level reloads.
 	# (death_reload_delay is unused now; the sequence sets the pace.)
@@ -558,13 +802,50 @@ func _die() -> void:
 func _heal(amount: int = HEART) -> void:
 	current_health = min(max_health, current_health + amount)
 	health_updated.emit(current_health)
+	Sfx.play(&"heal")
 
 
 ## Permanent: one more heart (2 half-hearts) of max health, and a full heal.
 func add_heart_container(count: int = 1) -> void:
-	max_health += HEART * count
+	base_max_health += HEART * count
+	Sfx.play(&"power_up")
+	_apply_armor_stats()
 	current_health = max_health
 	health_updated.emit(current_health)
+
+
+## Damage after the armor's resistance to `element`, in whole half-hearts.
+func _resisted(amount: int, element: Hit.Element) -> int:
+	var resist := armor.resistance(element) if armor else 0.0
+	if resist <= 0.0:
+		return amount
+	var exact := amount * (1.0 - resist) + _damage_carry
+	var dealt := floori(exact + 0.001)
+	_damage_carry = exact - dealt
+	return dealt
+
+
+## Puts on `data` (shrines, pedestals). Bonus hearts come as empty containers
+## (no heal from swapping); taking them off trims health to the new max.
+func set_armor(data: ArmorData) -> void:
+	if data == null:
+		return
+	armor = data
+	_damage_carry = 0.0
+	GameManager.own_armor(data)
+	_apply_armor_stats()
+	animated_sprite.self_modulate = data.tint
+	armor_changed.emit(data)
+
+
+func _apply_armor_stats() -> void:
+	max_health = base_max_health + (armor.bonus_hearts * HEART if armor else 0)
+	current_health = mini(current_health, max_health)
+	health_updated.emit(current_health)
+	if weapon_data:
+		max_flutter_charges = _max_flutter()
+		flutter_charges_left = mini(flutter_charges_left, max_flutter_charges)
+		wings_updated.emit(flutter_charges_left)
 
 # --- ABILITIES ---
 func start_flutter():
@@ -577,6 +858,8 @@ func start_flutter():
 		flutter_charges_left -= 1
 	velocity.y = FLUTTER_KICK * weapon_data.flutter_height # Instant kick up
 	wings_updated.emit(flutter_charges_left)
+	# Broken wings strain harder (higher) with each flap used this airtime.
+	Sfx.play(&"flutter", -1.0, 0.0, 1.0 + 0.08 * maxi(0, max_flutter_charges - flutter_charges_left - 1))
 
 func add_flutter_charge(amount: int = 1):
 	flutter_charges_left = min(flutter_charges_left + amount, max_flutter_charges)
@@ -586,6 +869,7 @@ func add_flutter_charge(amount: int = 1):
 ## the sword's base (up to FLUTTER_CAP).
 func add_flutter_slot(amount: int = 1):
 	flutter_bonus += amount
+	Sfx.play(&"power_up")
 	max_flutter_charges = _max_flutter()
 	flutter_charges_left = max_flutter_charges
 	wings_updated.emit(flutter_charges_left)
@@ -605,7 +889,7 @@ func _setup_hazard_sensor() -> void:
 	shape.position = Vector2(0, -6)
 	hazard_sensor.add_child(shape)
 	add_child(hazard_sensor)
-	hazard_sensor.body_entered.connect(func(_body: Node2D) -> void: respawn_from_hazard(HEART))
+	hazard_sensor.body_entered.connect(func(_body: Node2D) -> void: respawn_from_hazard(HEART, _hazard_element()))
 
 func _update_last_safe_position() -> void:
 	if not is_on_floor() or not get_platform_velocity().is_zero_approx():
@@ -615,15 +899,16 @@ func _update_last_safe_position() -> void:
 	last_safe_position = global_position
 
 ## Lava, poison, bottomless pits: hurt (ignoring i-frames) and return to safe ground.
-func respawn_from_hazard(amount: int = HEART) -> void:
+func respawn_from_hazard(amount: int = HEART, element: Hit.Element = Hit.Element.NONE) -> void:
 	if is_dead or hazard_cooldown > 0.0:
 		return
 	hazard_cooldown = 0.3
 	damage_invulnerability_timer = 0.0
-	take_damage(amount)
+	take_damage(amount, Vector2.ZERO, element)
 	if is_dead:
 		return
 	global_position = last_safe_position
+	_end_dash(0.0) # DASH STRIKE
 	velocity = Vector2.ZERO
 	_end_meteor()
 	is_fluttering = false
@@ -645,6 +930,7 @@ func _start_drop_through() -> void:
 	collision_mask &= ~ONE_WAY_LAYER
 	drop_through_timer = DROP_THROUGH_TIME
 	position.y += 2.0
+	Sfx.play(&"drop_through")
 
 # --- DEBUG ---
 func _noclip_move(delta: float) -> void:
@@ -659,13 +945,71 @@ func _noclip_move(delta: float) -> void:
 ## combos), but never refills flutters: charges left are capped to the new
 ## sword's maximum.
 func _on_sword_switch_requested():
-	if loadout.size() < 2:
+	switch_sword(1)
+
+
+## Next (+1) or previous (-1) sword. Cancels a swing in progress so the new
+## sword can strike right away (the buffered attack fires on the next frame).
+func switch_sword(step: int) -> void:
+	if loadout.size() < 2 or is_dead:
 		return
-	_equip((active_slot + 1) % loadout.size(), false)
+	if active_weapon and active_weapon.has_method("cancel_swing"):
+		active_weapon.cancel_swing()
+	attack_cooldown = 0.0
+	_equip(posmod(active_slot + step, loadout.size()), false)
+	Sfx.play(&"switch_sword")
+	CombatFX.afterimage(animated_sprite, Color(weapon_data.tint.r, weapon_data.tint.g, weapon_data.tint.b, 0.45), 0.12)
+
+
+## Replaces the carried swords (1 to MAX_LOADOUT) and equips `slot`. Used at
+## start, by shrines (armory) and pedestals. Flutters are kept, not refilled.
+func set_loadout(new_loadout: Array, slot: int = 0) -> void:
+	var swords: Array[WeaponData] = []
+	for data in new_loadout:
+		if data is WeaponData and data.scene and not data in swords and swords.size() < MAX_LOADOUT:
+			swords.append(data)
+	assert(not swords.is_empty(), "She must carry at least one sword")
+	var first_time := weapon_data == null
+	for inst in loadout_instances:
+		inst.queue_free()
+	loadout_instances.clear()
+	active_weapon = null
+	loadout = swords
+	for data in loadout:
+		var inst: Node2D = data.scene.instantiate()
+		if "data" in inst:
+			inst.data = data
+		inst.modulate = data.tint
+		if inst.has_signal("landed"):
+			inst.landed.connect(_on_weapon_landed.bind(inst))
+		weapon_anchor.add_child(inst)
+		_disable_weapon(inst)
+		loadout_instances.append(inst)
+	weapon_1_instance = loadout_instances[0] if loadout_instances.size() > 0 else null
+	weapon_2_instance = loadout_instances[1] if loadout_instances.size() > 1 else null
+	_equip(clampi(slot, 0, loadout.size() - 1), first_time)
+
+
+## Pedestal pickup: adds the sword if there's a free slot (and switches to it),
+## otherwise swaps it for the sword in hand. Returns the sword left behind on
+## the pedestal (null if none).
+func take_weapon(data: WeaponData) -> WeaponData:
+	GameManager.own_weapon(data)
+	var swords := loadout.duplicate()
+	if swords.size() < MAX_LOADOUT:
+		swords.append(data)
+		set_loadout(swords, swords.size() - 1)
+		return null
+	var left_behind: WeaponData = swords[active_slot]
+	swords[active_slot] = data
+	set_loadout(swords, active_slot)
+	return left_behind
 
 
 func _equip(slot: int, refill_flutter: bool) -> void:
 	if active_weapon:
+		if active_weapon.has_method("cancel_swing"):
+			active_weapon.cancel_swing()
 		_disable_weapon(active_weapon)
 	active_slot = slot
 	weapon_data = loadout[slot]
@@ -677,12 +1021,23 @@ func _equip(slot: int, refill_flutter: bool) -> void:
 	else:
 		flutter_charges_left = mini(flutter_charges_left, max_flutter_charges)
 	wings_updated.emit(flutter_charges_left)
+	if meteor_sword:
+		meteor_sword.modulate = weapon_data.tint
 	weapon_switched.emit(slot == 0)
 	weapon_changed.emit(weapon_data, slot)
 
 
 func _max_flutter() -> int:
-	return mini(weapon_data.flutter_charges + flutter_bonus, FLUTTER_CAP)
+	var feathers := armor.bonus_feathers if armor else 0
+	return mini(weapon_data.flutter_charges + flutter_bonus + feathers, FLUTTER_CAP)
+
+
+## Element of the level's hazard tiles (lava burns; poison pools don't).
+func _hazard_element() -> Hit.Element:
+	var level := LevelManager.current_level
+	if level and level.has_method("hazard_element"):
+		return level.hazard_element()
+	return Hit.Element.NONE
 
 
 func _disable_weapon(weapon: Node2D):
@@ -698,3 +1053,251 @@ func _enable_weapon(weapon: Node2D):
 	weapon.process_mode = Node.PROCESS_MODE_INHERIT
 	# Remove the emit from here to keep things clean!
 	
+
+# --- DASH STRIKE ---
+## A side-route ability (AbilityShrine "ability:dash"; GameManager.has_ability).
+## The `dash` action bursts her in the direction held on the stick / arrows,
+## 8-way (up, down, diagonals), or straight ahead where she faces if nothing
+## is held. Gravity is suspended for the burst only. It stops at walls,
+## ceilings and floors and cuts through enemies in its path with the sword's
+## element. A level ground dash is free (short cooldown); in the air, or any
+## dash with an upward part (even from the ground), it spends one flutter
+## feather and is refused with none left, so dashes can't replace feathers
+## on the climb. On the ground, down is ignored (it dashes level). A dash into armor (or a
+## shield from the front) clinks off and bounces her back, like a slash. She
+## is not invulnerable: only after landing a hit does she get a brief guard
+## while she passes through what she struck. Jumping out of a ground dash
+## leaves with a full run-up's speed (no more).
+const DASH_SPEED := 500.0          # px/s: 5 tiles in DASH_TIME
+const DASH_TIME := 0.16
+const DASH_COOLDOWN := 0.3         # from the end of one dash to the next
+const DASH_BUFFER := 0.1           # an early press still dashes when allowed
+const DASH_DAMAGE_MULT := 0.75     # of the sword's damage
+const DASH_KNOCKBACK := 220.0
+const DASH_HIT_GUARD := 0.2        # no contact harm right after a landed dash hit
+const DASH_REACH := 12.0           # hitbox reaches this far ahead of her center
+const DASH_HITBOX_HEIGHT := 14.0
+const DASH_HIT_MASK := 1           # what swords scan: enemy hurtboxes, obstacles
+const DASH_TRAIL_INTERVAL := 0.03
+const DASH_CARRY_Y := 0.33         # share of vertical dash speed kept after
+var dash_timer := 0.0
+var dash_cooldown := 0.0
+var dash_buffer := 0.0
+var dash_guard_timer := 0.0
+var _dash_dir := 1.0               # facing sign (-1 / 1), for flips and FX
+var _dash_vec := Vector2.RIGHT     # unit direction of this dash
+var _dash_grounded := false
+var _dash_hit: Dictionary = {}     # instance ids already struck this dash
+var _dash_trail: DashTrail
+var _dash_ghost_timer := 0.0
+var _dash_shape: RectangleShape2D
+var _last_physics_frame := -1
+var _dash_resume_block := 0        # physics frames to ignore dash after a resume
+
+
+func has_dash() -> bool:
+	return GameManager.has_ability(&"dash")
+
+
+## Reads the `dash` action (buffered) and starts a dash when allowed. Ignores
+## the press that closed a menu (O is also "menu back"): physics frames keep
+## counting while the tree is paused, so a gap since our last frame means the
+## game just resumed. The stale press can show up on the first or second
+## frame after, depending on when the menu unpaused, so both are skipped.
+func _dash_input(delta: float) -> void:
+	var frame := Engine.get_physics_frames()
+	var resumed := _last_physics_frame >= 0 and frame - _last_physics_frame > 1
+	_last_physics_frame = frame
+	dash_cooldown = maxf(0.0, dash_cooldown - delta)
+	dash_guard_timer = maxf(0.0, dash_guard_timer - delta)
+	dash_buffer = maxf(0.0, dash_buffer - delta)
+	if resumed:
+		_dash_resume_block = 2
+	if _dash_resume_block > 0:
+		_dash_resume_block -= 1
+		dash_buffer = 0.0
+		return
+	if InputMap.has_action("dash") and Input.is_action_just_pressed("dash"):
+		dash_buffer = DASH_BUFFER
+	if dash_buffer > 0.0 and dash_timer <= 0.0 and can_dash():
+		dash_buffer = 0.0
+		start_dash()
+
+
+func can_dash() -> bool:
+	if not has_dash() or is_dead or dash_timer > 0.0 or dash_cooldown > 0.0:
+		return false
+	if hurt_stun_timer > 0.0 or attack_lock_timer > 0.0 or is_dive_attacking:
+		return false
+	return not _dash_costs_feather(_dash_direction()) or flutter_charges_left > 0 \
+			or DebugMenu.infinite_flutter
+
+
+## Unit direction for a dash started now: the held direction, 8-way (down
+## dropped on the ground), else straight ahead where she faces.
+func _dash_direction() -> Vector2:
+	var held := Vector2(Input.get_axis("move_left", "move_right"), Input.get_axis("move_up", "move_down"))
+	held = Vector2(signf(roundf(held.x)), signf(roundf(held.y))) # snap the stick to 8 ways
+	if is_on_floor() and held.y > 0.0:
+		held.y = 0.0
+	if held == Vector2.ZERO:
+		held.x = signf(pivot.scale.x) if pivot.scale.x != 0.0 else 1.0
+	return held.normalized()
+
+
+## A feather pays for any dash in the air, and for one that rises.
+func _dash_costs_feather(dir: Vector2) -> bool:
+	return not is_on_floor() or dir.y < 0.0
+
+
+## Starts the burst. A feather (in the air, or rising) is spent through the
+## same path as a flutter (wings_updated), which the HUD feathers show.
+func start_dash() -> void:
+	_dash_vec = _dash_direction()
+	if _dash_vec.x != 0.0:
+		pivot.scale.x = signf(_dash_vec.x)
+	_dash_dir = signf(pivot.scale.x) if pivot.scale.x != 0.0 else 1.0
+	_dash_grounded = is_on_floor() and _dash_vec.y == 0.0
+	if _dash_costs_feather(_dash_vec):
+		if not DebugMenu.infinite_flutter:
+			flutter_charges_left -= 1
+		wings_updated.emit(flutter_charges_left)
+		_dash_feather_fx()
+	dash_timer = DASH_TIME
+	is_jumping = false
+	is_fluttering = false
+	lunge_timer = 0.0
+	_dash_hit.clear()
+	velocity = _dash_vec * DASH_SPEED
+	_dash_ghost_timer = 0.0
+	var tint: Color = weapon_data.tint.lerp(Color.WHITE, 0.5) if weapon_data else Color.WHITE
+	_dash_trail = DashTrail.spawn(self, _dash_vec, Color(tint, 0.8))
+	Sfx.play(&"dash", -1.0, 0.0, 1.25)
+
+
+func _dash_step(delta: float) -> void:
+	if is_dive_attacking:
+		_end_dash(0.0)
+		return
+	# Jump out of a ground dash: leaves with a full run-up, no extra.
+	if _dash_grounded and is_on_floor() and Input.is_action_just_pressed("jump"):
+		current_momentum = MAX_MOMENTUM_BONUS
+		_end_dash(_dash_dir * MAX_SPEED * weapon_data.top_speed)
+		return
+	if is_on_wall() and get_wall_normal().x * _dash_vec.x < 0.0:
+		_end_dash(0.0)
+		return
+	if (_dash_vec.y < 0.0 and is_on_ceiling()) or (_dash_vec.y > 0.0 and is_on_floor()):
+		_end_dash(_dash_vec.x * BASE_SPEED * weapon_data.top_speed)
+		return
+	velocity = _dash_vec * DASH_SPEED
+	_dash_strike(delta)
+	if dash_timer <= 0.0:
+		return # clinked off armor (recoil ended it)
+	_dash_ghost_timer -= delta
+	if _dash_ghost_timer <= 0.0:
+		_dash_ghost_timer = DASH_TRAIL_INTERVAL
+		CombatFX.afterimage(animated_sprite, LUNGE_TINT)
+	if dash_timer - delta <= 0.0:
+		# Back to her run speed; steering, gravity and friction take over.
+		_end_dash(_dash_vec.x * BASE_SPEED * weapon_data.top_speed)
+	else:
+		dash_timer -= delta
+
+
+## Ends a dash in progress (no-op otherwise); `carry_x` is her speed after.
+## A vertical part eases off to a third of dash speed, so an up-dash floats
+## to a stop rather than launching her, and a down-dash keeps falling.
+func _end_dash(carry_x: float) -> void:
+	if dash_timer <= 0.0:
+		return
+	dash_timer = 0.0
+	dash_cooldown = DASH_COOLDOWN
+	velocity.x = carry_x
+	velocity.y = _dash_vec.y * DASH_SPEED * DASH_CARRY_Y if not is_on_floor() else 0.0
+	if _dash_trail and is_instance_valid(_dash_trail):
+		_dash_trail.stop()
+	_dash_trail = null
+
+
+## The dash's hitbox: a box from her center to DASH_REACH ahead along the
+## dash, stretched by this frame's travel, queried directly so a fast pass
+## can't skip a target.
+## Each target is struck once per dash.
+func _dash_strike(delta: float) -> void:
+	if _dash_shape == null:
+		_dash_shape = RectangleShape2D.new()
+	var length := DASH_REACH + DASH_SPEED * delta
+	_dash_shape.size = Vector2(length, DASH_HITBOX_HEIGHT)
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = _dash_shape
+	query.transform = Transform2D(_dash_vec.angle(), global_position + Vector2(0.0, -7.0) + _dash_vec * length / 2.0)
+	query.collision_mask = DASH_HIT_MASK
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+	query.exclude = [get_rid()]
+	for result in get_world_2d().direct_space_state.intersect_shape(query, 16):
+		var collider: Object = result["collider"]
+		var targets: Array = [collider]
+		if collider is Area2D and (collider as Node).get_parent() is Node2D:
+			targets.append((collider as Node).get_parent())
+		for target: Object in targets:
+			if not is_instance_valid(target) or target == self or _dash_hit.has(target.get_instance_id()):
+				continue
+			if target is Node and (target as Node).is_in_group("player"):
+				continue
+			if not (target.has_method("take_hit") or target.has_method("take_damage")):
+				continue
+			_dash_hit[target.get_instance_id()] = true
+			var hit := Hit.make(maxi(1, roundi(weapon_data.damage * DASH_DAMAGE_MULT)),
+					_dash_vec * DASH_KNOCKBACK, weapon_data.element, weapon_data.heavy_hits, self)
+			if not Hit.deliver(target, hit):
+				continue
+			if dash_timer <= 0.0:
+				return # armor: the target called recoil(), which ended the dash
+			_dash_landed(target)
+
+
+func _dash_landed(target: Object) -> void:
+	dash_guard_timer = DASH_HIT_GUARD
+	Sfx.play(&"dash_hit")
+	var at: Vector2 = (target as Node2D).global_position if target is Node2D else global_position
+	CombatFX.burst(self, at + Vector2(0, -4), 9.0, weapon_data.tint.lerp(Color.WHITE, 0.4), 1.0, 5, 0.15)
+
+
+## A feather or two shaken loose: the air dash's cost, made visible.
+func _dash_feather_fx() -> void:
+	var feathers := FeatherBurst.new()
+	feathers.count = 3
+	feathers.life = 0.9
+	feathers.fade_time = 0.4
+	var parent: Node = get_tree().current_scene if get_tree().current_scene else get_parent()
+	parent.add_child(feathers)
+	feathers.global_position = global_position + Vector2(0.0, -8.0) - _dash_vec * 4.0
+
+
+# --- SOUND (see scripts/audio/sfx.gd) ---
+## A footstep on each foot contact of the run cycle (every 4th frame), on the
+## current realm's surface.
+func _sfx_footstep() -> void:
+	if animated_sprite.animation == &"run" and animated_sprite.frame % 4 == 0 and is_on_floor():
+		Sfx.play(Sfx.footstep_id())
+
+
+## Landing thud, louder with fall speed; a full-speed fall lands heavy. The
+## meteor strike has its own impact instead.
+func _sfx_landing(fall_speed: float) -> void:
+	var grounded := is_on_floor()
+	if grounded and not _sfx_on_floor and not is_dead and not is_dive_attacking and fall_speed > 80.0:
+		var heavy := fall_speed >= TERMINAL_VELOCITY * 0.95
+		Sfx.play(&"land_heavy" if heavy else &"land", -1.0, remap(minf(fall_speed, TERMINAL_VELOCITY), 80.0, TERMINAL_VELOCITY, -10.0, 0.0))
+	_sfx_on_floor = grounded
+
+
+## Meteor landing boom; stronger swords (meteor_power) get the big one.
+func _sfx_meteor_impact() -> void:
+	if weapon_data.meteor_power >= 1.2:
+		Sfx.play(&"meteor_impact_big")
+		Sfx.play(&"meteor_slam")
+	else:
+		Sfx.play(&"meteor_impact", -1.0, 0.0, 1.0 / maxf(weapon_data.meteor_power, 0.5))

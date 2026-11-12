@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/kenney_tiny_dungeon/derived/flame_greatsword.png" id="1_a3ony"]
+[ext_resource type="PackedScene" path="res://scenes/sword.tscn" id="2_pkec3"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_data.gd" id="3_f00dr"]
+
+[resource]
+script = ExtResource("3_f00dr")
+id = &"flame_greatsword"
+display_name = "Flame Greatsword"
+description = "A burning blade: sets foes alight, melts ice, and burns away living vines. Its rising slash is a towering uppercut."
+scene = ExtResource("2_pkec3")
+swing_texture = ExtResource("1_a3ony")
+icon = ExtResource("1_a3ony")
+tint = Color(1.15, 1, 0.95, 1)
+damage = 25
+element = 2
+attack_speed = 0.75
+rising_lift = 300.0
+meteor_power = 1.1
+jump_height = 0.95
+top_speed = 0.95
+acceleration = 0.9
+momentum_gain = 0.9
+traction = 1.1
+flutter_height = 0.9

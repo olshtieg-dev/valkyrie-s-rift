@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="TileTheme" format=3]
 
 [ext_resource type="Script" path="res://scripts/level/tile_theme.gd" id="1_theme"]
+[ext_resource type="PackedScene" path="res://scenes/backgrounds/hel_backdrop.tscn" id="2_parallax"]
 
 [resource]
 script = ExtResource("1_theme")
@@ -11,5 +12,7 @@ hazard_top = Vector2i(4, 13)
 hazard_fill = Vector2i(4, 14)
 background = Vector2i(5, 1)
 background_tint = Color(0.3, 0.13, 0.13, 1)
+parallax = ExtResource("2_parallax")
+background_reach = 0
 decor = Array[Vector2i]([Vector2i(7, 5), Vector2i(8, 5), Vector2i(7, 6), Vector2i(8, 6), Vector2i(5, 8)])
 decor_chance = 0.07

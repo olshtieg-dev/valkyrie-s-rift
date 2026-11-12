@@ -1,3 +1,11 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
 config_version=5
 
 [application]
@@ -13,6 +21,8 @@ InputSetup="*res://scripts/autoload/input_setup.gd"
 GameManager="*uid://hr71tca0tkls"
 LevelManager="*res://scripts/autoload/level_manager.gd"
 DebugMenu="*res://scripts/autoload/debug_menu.gd"
+MusicPlayer="*res://scripts/audio/music_player.gd"
+Sfx="*res://scripts/audio/sfx.gd"
 
 [input]
 

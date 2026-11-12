@@ -19,6 +19,8 @@ const BOUNDS_THICKNESS := 64.0
 @export var realm: String = ""
 ## Spawn used when arriving without a specific target (debug warp, F6).
 @export var default_spawn: String = "default"
+## Put a Valkyrie shrine (armory + barter) beside the entrance spawn.
+@export var place_shrine: bool = true
 
 @export_group("Atmosphere")
 @export var clear_color: Color = Color(0.08, 0.07, 0.1)
@@ -40,6 +42,8 @@ func _ready() -> void:
 	_build()
 	_collect_spawns()
 	_place_exits()
+	if place_shrine:
+		_place_shrine()
 	bounds_rect = _compute_bounds()
 	_create_bounds(bounds_rect)
 	_apply_atmosphere()
@@ -52,7 +56,46 @@ func _ready() -> void:
 ## Override in subclasses that build their geometry in code (see debug_room.gd).
 func _build() -> void:
 	if generator:
+		_configure_detours()
 		generator.generate_if_needed()
+		_place_side_route_find()
+
+
+## The registry says what this level's side route holds ("find") and what
+## plugs its other detours ("gate"); the generator lays them out.
+func _configure_detours() -> void:
+	var entry := LevelRegistry.find(level_id)
+	generator.reserve_find_spot = entry.has("find")
+	generator.find_count = maxi(LevelRegistry.finds_of(entry).size(), 1)
+	match entry.get("gate", ""):
+		"vine": generator.side_room_gate = LevelGenerator.Gate.VINE
+		"slime": generator.side_room_gate = LevelGenerator.Gate.SLIME
+
+
+## Each find rests at the far end of its own detour: a pedestal (sword or
+## armor), a heart vessel, or an ability shrine ("ability:<id>"). Taken finds
+## stay taken (each remembers, keyed by this level + its name: the first is
+## "SideRouteFind", later ones "SideRouteFind2", ...).
+func _place_side_route_find() -> void:
+	var finds := LevelRegistry.finds_of(LevelRegistry.find(level_id))
+	for i in mini(finds.size(), generator.find_spots.size()):
+		var find: String = finds[i]
+		var node: Node2D
+		if find == "heart_container":
+			node = HeartVessel.new()
+		elif find.begins_with("ability:"):
+			var shrine := AbilityShrine.new()
+			shrine.ability = StringName(find.trim_prefix("ability:"))
+			node = shrine
+		else:
+			var item: Resource = load(find)
+			var pedestal := SwordPedestal.new()
+			pedestal.weapon = item as WeaponData
+			pedestal.armor = item as ArmorData
+			node = pedestal
+		node.name = "SideRouteFind" if i == 0 else "SideRouteFind%d" % (i + 1)
+		node.position = generator.find_spots[i]
+		add_child(node)
 
 
 func announce() -> void:
@@ -60,6 +103,23 @@ func announce() -> void:
 		var realm_info := LevelRegistry.realm(realm)
 		var prefix: String = realm_info.get("name", "")
 		hud.show_title("%s — %s" % [prefix, display_name] if prefix != "" else display_name)
+
+
+## Damage type of this room's hazard tiles, for armor resistance: Hel's pools
+## are lava (fire); elsewhere they're poison/bog (physical).
+func hazard_element() -> Hit.Element:
+	return Hit.Element.FIRE if realm == "hel" else Hit.Element.NONE
+
+
+## The element this realm's creatures carry: Hel burns, the sky freezes,
+## Valhalla's storm shocks. Yggdrasil's are plain. Spitters' globs and the
+## touch of `elemental_touch` enemies use it, so armor matters by realm.
+func realm_element() -> Hit.Element:
+	match realm:
+		"hel": return Hit.Element.FIRE
+		"sky": return Hit.Element.ICE
+		"valhalla": return Hit.Element.THUNDER
+	return Hit.Element.NONE
 
 
 func get_spawn_position(spawn_id: String) -> Vector2:
@@ -81,6 +141,37 @@ func _collect_spawns() -> void:
 	for node in find_children("*", "Marker2D", true, false):
 		if node is SpawnPoint:
 			spawns[String(node.spawn_id)] = to_local(node.global_position)
+
+
+## Beside the spawn she enters from below ("start" or "south"), on solid
+## floor with headroom, a couple of tiles to the side if there's room.
+func _place_shrine() -> void:
+	var entrance := Vector2.INF
+	for key in ["start", "south", default_spawn, "default"]:
+		if spawns.has(key):
+			entrance = spawns[key]
+			break
+	if entrance == Vector2.INF:
+		return
+	var at := entrance
+	for dx in [-32.0, 32.0, -16.0, 16.0]:
+		if _standable(entrance + Vector2(dx, 0)):
+			at = entrance + Vector2(dx, 0)
+			break
+	var shrine := Shrine.new()
+	shrine.name = "Shrine"
+	shrine.position = at
+	add_child(shrine)
+
+
+## Feet at `feet`: a tile directly below, and two empty tiles above.
+func _standable(feet: Vector2) -> bool:
+	if not ground:
+		return false
+	var cell := ground.local_to_map(ground.to_local(to_global(feet + Vector2(0, 1))))
+	return ground.get_cell_source_id(cell) != -1 \
+			and ground.get_cell_source_id(cell + Vector2i.UP) == -1 \
+			and ground.get_cell_source_id(cell + Vector2i.UP * 2) == -1
 
 
 func _place_exits() -> void:

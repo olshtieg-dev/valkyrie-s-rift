@@ -65,7 +65,8 @@ static func shake(context: Node, strength: float, duration: float) -> void:
 	var cam := context.get_viewport().get_camera_2d() if context.is_inside_tree() else null
 	if cam == null:
 		return
-	var tween := context.get_tree().create_tween()
+	# Bound to the camera so it dies with it (a level reload mid-shake).
+	var tween := cam.create_tween()
 	tween.set_ignore_time_scale(true)
 	tween.tween_method(func(k: float) -> void:
 		if is_instance_valid(cam):

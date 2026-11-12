@@ -12,8 +12,12 @@ extends Node
 ##   SHAFT   - plain vertical tube with alternating shelves.
 ##   ARENA   - enclosed combat room with tiered platforms (Valhalla).
 ##   SURFACE - horizontal heightmap; kept for short side areas, not main path.
+##   WEAVE   - Yggdrasil's trunk built from interlocking sub-areas (chambers,
+##             galleries, bark flanks) that the climb weaves in and out of.
+##   MOUNTAIN- the roots climbed like a mountain: stepped slopes outside,
+##             root tunnels and caves woven through the mass. See WeaveBuilder.
 ##
-## Side rooms (CLIMB, TRUNK, SKY) are the detours: each gets a few pickups and,
+## Side rooms (CLIMB, TRUNK, SKY, WEAVE, MOUNTAIN) are the detours: each gets a few pickups and,
 ## if set, one `side_room_reward` (e.g. an ability) at its far end.
 ##
 ## Workflow: tweak exports, press "Generate" in the inspector to bake the result
@@ -23,7 +27,7 @@ extends Node
 ## After generation, `anchors` holds each opening's arrival point and exit rect,
 ## which the Level uses to place spawns and snap LevelExits.
 
-enum Style { CAVERN, SHAFT, SURFACE, ARENA, CLIMB, TRUNK, SKY }
+enum Style { CAVERN, SHAFT, SURFACE, ARENA, CLIMB, TRUNK, SKY, WEAVE, MOUNTAIN }
 
 const AIR := 0
 const SOLID := 1
@@ -44,6 +48,7 @@ const SOURCE_ID := 0
 
 @export_tool_button("Generate", "Reload") var _generate_action := generate
 @export_tool_button("Clear", "Clear") var _clear_action := clear
+@export_tool_button("Save As New Level", "Save") var _save_action := save_as_new_level
 
 @export_group("Openings")
 ## Side openings sit at a fraction of the height (0 = top, 1 = bottom);
@@ -57,6 +62,10 @@ const SOURCE_ID := 0
 @export_range(0.0, 1.0) var north_at: float = 0.5
 @export var open_south: bool = false
 @export_range(0.0, 1.0) var south_at: float = 0.5
+## Plug the west/east exit's doorway with an element obstacle, so the room
+## beyond waits for the right sword (see `side_room_gate`). Not for SURFACE.
+@export var west_gate: Gate = Gate.NONE
+@export var east_gate: Gate = Gate.NONE
 
 @export_group("Cavern")
 @export_range(0.3, 0.6) var fill_ratio: float = 0.46
@@ -65,7 +74,7 @@ const SOURCE_ID := 0
 @export_range(0, 10) var extra_tunnels: int = 2
 
 @export_group("Climb, Trunk & Sky")
-## Main shaft width in tiles (CLIMB).
+## Main shaft width in tiles (CLIMB); width of each inner lane (WEAVE, MOUNTAIN).
 @export_range(7, 21) var shaft_width: int = 11
 ## Chance to branch a side room at each candidate height (every ~6 rows).
 @export_range(0.0, 1.0) var side_room_chance: float = 0.5
@@ -74,7 +83,8 @@ const SOURCE_ID := 0
 ## Outer width of the tree (TRUNK). The rest of the width is open air outside.
 @export_range(12, 60) var trunk_width: int = 22
 @export_range(2, 5) var bark_thickness: int = 3
-## Rows between knot-holes connecting inside and outside (TRUNK).
+## Rows between knot-holes connecting inside and outside (TRUNK); height of
+## each sub-area band (WEAVE, MOUNTAIN). trunk_width is the mountain's base.
 @export_range(8, 40) var knothole_spacing: int = 16
 
 @export_group("Traversal")
@@ -94,6 +104,27 @@ const SOURCE_ID := 0
 @export_range(0, 100) var pickup_count: int = 10
 ## Placed once at the far end of each side room (leave empty for coins only).
 @export var side_room_reward: PackedScene
+## Plugs every other side-room tunnel (CLIMB) with an element obstacle, so
+## those detours wait until she has the right sword: VINE burns (flame),
+## SLIME freezes then shatters (ice + a heavy hit). The find room stays open.
+## The level registry can set this per level ("gate").
+@export var side_room_gate: Gate = Gate.NONE
+## Pick a detour spot for the level's side-route find (see `find_spot`).
+## The level turns this on when its registry entry has a "find".
+@export var reserve_find_spot: bool = false
+
+enum Gate { NONE, VINE, SLIME }
+
+## After generation: feet position (level-local px) at the far end of the
+## detour reserved for the side-route find, or Vector2.INF if none.
+var find_spot := Vector2.INF
+var _find_room := -1
+## How many side-route finds to reserve spots for (one detour each; the level
+## sets it from its registry "find" list). find_spot is the first of them.
+var find_count := 1
+## After generation: one feet position per find, best detour first.
+var find_spots: Array[Vector2] = []
+var _find_rooms: Array[int] = []
 
 @export_group("Nodes")
 @export var ground_layer: TileMapLayer
@@ -116,12 +147,27 @@ var _climb_area := PackedByteArray() # empty = climb platforms anywhere
 var _backdrop := PackedByteArray() # empty = paint background everywhere
 var _north_col := -1
 var _south_col := -1
+var _gates: Array[Dictionary] = [] # {"mouth": Vector2i, "dir": int}
 
 
 func _ready() -> void:
+	if not Engine.is_editor_hint():
+		_add_parallax()
 	# Normally the Level drives generation; this covers a generator used on its own.
 	if not Engine.is_editor_hint() and not (get_parent() is Level):
 		generate_if_needed.call_deferred()
+
+
+## Instance the theme's parallax backdrop. It hangs under this plain Node, so it
+## sits at the canvas root with its own far-back z_index and no physics.
+func _add_parallax() -> void:
+	if not tile_theme or not tile_theme.parallax:
+		return
+	var backdrop := tile_theme.parallax.instantiate()
+	var origin := ground_layer.global_position if ground_layer else Vector2.ZERO
+	if backdrop.has_method("set_bounds"):
+		backdrop.set_bounds(Rect2(origin, Vector2(width, height) * TILE))
+	add_child(backdrop)
 
 
 ## Runtime entry point used by Level.
@@ -175,11 +221,24 @@ func generate() -> void:
 			_gen_trunk()
 		Style.SKY:
 			_gen_sky()
+		Style.WEAVE:
+			WeaveBuilder.new(self).build(WeaveBuilder.Body.TRUNK)
+		Style.MOUNTAIN:
+			WeaveBuilder.new(self).build(WeaveBuilder.Body.MOUNTAIN)
 
+	find_spot = Vector2.INF
+	_find_room = -1
+	find_spots.clear()
+	_find_rooms.clear()
+	if reserve_find_spot:
+		_pick_find_room()
+	_plan_gates()
 	if style in [Style.CAVERN, Style.SHAFT, Style.CLIMB, Style.TRUNK]:
 		_add_climb_platforms()
 	if tile_theme.has_hazard() and hazard_chance > 0.0:
 		_add_hazard_pools()
+	if reserve_find_spot and find_spots.size() < maxi(find_count, 1):
+		_pick_find_cell()
 	_paint()
 	_populate()
 	if Engine.is_editor_hint():
@@ -192,6 +251,57 @@ func clear() -> void:
 			layer.clear()
 	_clear_generated_entities()
 	anchors = {}
+
+
+## Editor only: save the open level, as generated right now, to a new scene
+## `res://levels/<realm>/<realm>_seed_<seed>.tscn` (never overwrites; adds a
+## suffix if taken), then open that copy for hand-editing. The scene you
+## generated in is left unsaved; discard its changes unless you meant to keep them.
+## Add the new level to LevelRegistry to put it in the game.
+func save_as_new_level() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	var root := get_tree().edited_scene_root
+	if not root is Level:
+		push_error("LevelGenerator: Save As New Level needs a Level as the scene root.")
+		return
+	if not ground_layer or ground_layer.get_used_cells().is_empty():
+		push_error("LevelGenerator: nothing to save; press Generate first.")
+		return
+	var level := root as Level
+	var realm_dir := level.realm if level.realm != "" else "misc"
+	var dir := "res://levels/%s" % realm_dir
+	DirAccess.make_dir_recursive_absolute(dir)
+	var base := "%s_seed_%d" % [realm_dir, level_seed]
+	var id := base
+	var n := 2
+	while FileAccess.file_exists("%s/%s.tscn" % [dir, id]):
+		id = "%s_%d" % [base, n]
+		n += 1
+	var path := "%s/%s.tscn" % [dir, id]
+
+	# Give the copy its own id/name while packing, then restore the original.
+	var old_id := level.level_id
+	var old_name := level.display_name
+	level.level_id = id
+	level.display_name = "%s (seed %d)" % [old_name if old_name != "" else realm_dir.capitalize(), level_seed]
+	var packed := PackedScene.new()
+	var err := packed.pack(root)
+	level.level_id = old_id
+	level.display_name = old_name
+	if err != OK:
+		push_error("LevelGenerator: could not pack scene (%s)." % error_string(err))
+		return
+	err = ResourceSaver.save(packed, path)
+	if err != OK:
+		push_error("LevelGenerator: could not save %s (%s)." % [path, error_string(err)])
+		return
+	print("LevelGenerator: saved %s (level_id \"%s\"). Add it to LevelRegistry to use it." % [path, id])
+	# EditorInterface is looked up by name so this script still compiles in exported builds.
+	if Engine.has_singleton("EditorInterface"):
+		var editor: Object = Engine.get_singleton("EditorInterface")
+		editor.get_resource_filesystem().scan()
+		editor.open_scene_from_path(path)
 
 
 # --------------------------------------------------------------------------
@@ -508,7 +618,9 @@ func _side_room(y: int, from_x: int, dir: int) -> bool:
 	_fill_rect(mini(wall_x, x0), y + 1, maxi(wall_x, x1), y + 1, SOLID)
 	# Ledge in the shaft at the tunnel mouth.
 	_fill_rect(mini(wall_x - dir, wall_x - dir * 3), y + 1, maxi(wall_x - dir, wall_x - dir * 3), y + 1, SOLID)
-	_side_rooms.append({"rect": Rect2i(x0, y - rh + 1, x1 - x0 + 1, rh), "dir": dir})
+	# mouth = the tunnel column next to the room, at the tunnel's floor row.
+	_side_rooms.append({"rect": Rect2i(x0, y - rh + 1, x1 - x0 + 1, rh), "dir": dir,
+			"mouth": Vector2i(near - dir, y)})
 	return true
 
 
@@ -796,11 +908,13 @@ func _paint() -> void:
 	if background_layer:
 		background_layer.clear()
 		background_layer.modulate = tile_theme.background_tint
+	var near_ground := _background_reach_mask() if paint_background else PackedByteArray()
 
 	for y in height:
 		for x in width:
 			var c := Vector2i(x, y)
-			if paint_background and (_backdrop.is_empty() or _backdrop[y * width + x] == 1):
+			if paint_background and (_backdrop.is_empty() or _backdrop[y * width + x] == 1) \
+					and (near_ground.is_empty() or near_ground[y * width + x] == 1):
 				background_layer.set_cell(c, SOURCE_ID, tile_theme.background)
 			match _cell(x, y):
 				SOLID:
@@ -821,6 +935,50 @@ func _paint() -> void:
 						decor_layer.set_cell(c, SOURCE_ID, tile_theme.decor[_rng.randi() % tile_theme.decor.size()])
 
 
+## Cells whose background tile stays when the theme has a parallax backdrop:
+## everything that isn't air, plus air within `background_reach` cells of it
+## (a ragged extra cell at the rim). Empty = paint everywhere. Hashes instead
+## of `_rng` so seeds keep producing the same rooms and enemies.
+func _background_reach_mask() -> PackedByteArray:
+	var reach := tile_theme.background_reach
+	if reach < 0 or not tile_theme.parallax or not _backdrop.is_empty():
+		return PackedByteArray()
+	var dist := PackedInt32Array()
+	dist.resize(width * height)
+	dist.fill(reach + 2)
+	var frontier: Array[int] = []
+	for i in width * height:
+		if _grid[i] != AIR:
+			dist[i] = 0
+			frontier.append(i)
+	# Multi-source BFS (8-neighbour = Chebyshev distance), capped at reach + 1.
+	var head := 0
+	while head < frontier.size():
+		var i := frontier[head]
+		head += 1
+		var d := dist[i] + 1
+		if d > reach + 1:
+			continue
+		var x := i % width
+		var y := i / width
+		for dy in range(-1, 2):
+			for dx in range(-1, 2):
+				var nx := x + dx
+				var ny := y + dy
+				if nx < 0 or ny < 0 or nx >= width or ny >= height:
+					continue
+				var j := ny * width + nx
+				if dist[j] > d:
+					dist[j] = d
+					frontier.append(j)
+	var mask := PackedByteArray()
+	mask.resize(width * height)
+	for i in width * height:
+		var rim := dist[i] == reach + 1 and (hash(i * 7919 + level_seed) & 3) == 0
+		mask[i] = 1 if dist[i] <= reach or rim else 0
+	return mask
+
+
 func _populate() -> void:
 	_clear_generated_entities()
 	var root: Node = entities_root if entities_root else self
@@ -832,6 +990,7 @@ func _populate() -> void:
 	if not enemy_scenes.is_empty() and enemy_count > 0:
 		_populate_enemies(root, avoid)
 	_populate_side_rooms(root)
+	_populate_gates(root)
 
 	if pickup_scene and pickup_count > 0:
 		var spots: Array = []
@@ -933,12 +1092,143 @@ func _populate_side_rooms(root: Node) -> void:
 		var room: Rect2i = side_room["rect"]
 		var floor_y := room.end.y - 1 # last air row
 		var mid := room.position.x + room.size.x / 2
+		var find_col := _far_x(side_room) if _side_rooms.find(side_room) in _find_rooms else -99
 		if pickup_scene:
 			for dx in range(-1, 2):
+				if absi(mid + dx - find_col) <= 0:
+					continue # keep the find's pedestal clear
 				_spawn_entity(root, pickup_scene, Vector2((mid + dx) * TILE + TILE / 2.0, (floor_y - 1) * TILE + TILE / 2.0))
 		if side_room_reward:
 			var far_x: int = room.position.x + 1 if side_room["dir"] < 0 else room.end.x - 2
 			_spawn_entity(root, side_room_reward, Vector2(far_x * TILE + TILE / 2.0, floor_y * TILE + TILE / 2.0))
+
+
+# --------------------------------------------------------------------------
+# Side-route find and gates
+# --------------------------------------------------------------------------
+
+## The find goes in a side room early in the climb (lower part of the map),
+## the one reaching farthest out to the side. With several finds
+## (find_count), each takes the next best detour; find_spot is the first.
+func _pick_find_room() -> void:
+	for n in maxi(find_count, 1):
+		var pick := -1
+		var best := -1.0
+		for pass_low: bool in [true, false]:
+			for i in _side_rooms.size():
+				var room: Rect2i = _side_rooms[i]["rect"]
+				if i in _find_rooms or (pass_low and room.position.y < height * 0.35):
+					continue
+				var far_x := _far_x(_side_rooms[i])
+				var reach := absf(far_x - width / 2.0)
+				if reach > best:
+					best = reach
+					pick = i
+			if pick >= 0:
+				break
+		if pick < 0:
+			break
+		_find_rooms.append(pick)
+		var room: Rect2i = _side_rooms[pick]["rect"]
+		find_spots.append(Vector2(_far_x(_side_rooms[pick]) * TILE + TILE / 2.0, room.end.y * TILE))
+	if not _find_rooms.is_empty():
+		_find_room = _find_rooms[0]
+		find_spot = find_spots[0]
+
+
+## No side rooms (CAVERN, SHAFT): the floor spot farthest off the straight
+## line between the bottom and top openings, in the middle of the climb.
+## Also fills in any finds the side rooms had no room for, each well apart.
+func _pick_find_cell() -> void:
+	var south := _south_col if _south_col >= 0 else width / 2
+	var north := _north_col if _north_col >= 0 else width / 2
+	while find_spots.size() < maxi(find_count, 1):
+		var best := -1.0
+		var spot := Vector2.INF
+		for y in range(int(height * 0.3), int(height * 0.8)):
+			var line_x := lerpf(north, south, float(y) / height)
+			for x in range(3, width - 3):
+				if _cell(x, y) != AIR or _cell(x, y - 1) != AIR or _cell(x, y - 2) != AIR or _is_protected(x, y):
+					continue
+				if _cell(x - 1, y + 1) != SOLID or _cell(x, y + 1) != SOLID or _cell(x + 1, y + 1) != SOLID:
+					continue
+				var here := Vector2(x * TILE + TILE / 2.0, (y + 1) * TILE)
+				if find_spots.any(func(f: Vector2) -> bool: return f.distance_to(here) < 12.0 * TILE):
+					continue
+				var reach := absf(x - line_x)
+				if reach > best:
+					best = reach
+					spot = here
+		if spot == Vector2.INF:
+			break
+		find_spots.append(spot)
+		if find_spot == Vector2.INF:
+			find_spot = spot
+		var c := Vector2i(int(spot.x) / TILE, int(spot.y) / TILE - 1)
+		_protect_rect(c.x - 1, c.y - 2, c.x + 1, c.y + 1)
+
+
+func _far_x(side_room: Dictionary) -> int:
+	var room: Rect2i = side_room["rect"]
+	return room.position.x + 1 if side_room["dir"] < 0 else room.end.x - 2
+
+
+## Every other tunnel-mouthed side room gets plugged (never a find room).
+## A slime boulder is only 2 tiles tall, so its tunnel gets a lower ceiling.
+func _plan_gates() -> void:
+	_gates.clear()
+	if style != Style.SURFACE:
+		for side: String in ["west", "east"]:
+			var gate_type: Gate = west_gate if side == "west" else east_gate
+			if gate_type == Gate.NONE or not anchors.has(side):
+				continue
+			# The doorway from _make_openings: floor row r, air rows r-3..r-1.
+			var r := int(anchors[side]["spawn"].y) / TILE
+			var dir := -1 if side == "west" else 1
+			var mx := 4 if side == "west" else width - 5
+			_add_gate(Vector2i(mx, r - 1), dir, gate_type)
+	if side_room_gate == Gate.NONE:
+		return
+	var k := 0
+	for i in _side_rooms.size():
+		if i in _find_rooms or not _side_rooms[i].has("mouth"):
+			continue
+		k += 1
+		if k % 2 == 0:
+			continue
+		_add_gate(_side_rooms[i]["mouth"], _side_rooms[i]["dir"], side_room_gate)
+
+
+## Plug the 3-tall passage whose bottom air cell is `m` (dir points away from
+## the room's interior). A slime needs the ceiling lowered to 2 tiles over it.
+func _add_gate(m: Vector2i, dir: int, gate_type: Gate) -> void:
+	var back := m.x - dir # the column toward the room
+	if gate_type == Gate.SLIME:
+		if _cell(back, m.y) != AIR or _cell(back, m.y - 1) != AIR:
+			return
+		_put(m.x, m.y - 2, SOLID)
+		_put(back, m.y - 2, SOLID)
+	_protect_rect(mini(m.x, back), m.y - 2, maxi(m.x, back), m.y + 1)
+	_gates.append({"mouth": m, "dir": dir, "type": gate_type})
+
+
+func _populate_gates(root: Node) -> void:
+	for gate in _gates:
+		var m: Vector2i = gate["mouth"]
+		var dir: int = gate["dir"]
+		var node: Node2D
+		if gate.get("type", side_room_gate) == Gate.VINE:
+			var vine := VineWall.new()
+			vine.size_tiles = Vector2i(1, 3)
+			vine.position = Vector2(m.x * TILE, (m.y - 2) * TILE)
+			node = vine
+		else:
+			node = SlimeBoulder.new()
+			node.position = Vector2(mini(m.x, m.x - dir) * TILE + TILE, (m.y + 1) * TILE)
+		node.set_meta("generated", true)
+		root.add_child(node)
+		if Engine.is_editor_hint() and is_inside_tree():
+			node.owner = get_tree().edited_scene_root
 
 
 func _pick_spread(candidates: Array, count: int, spacing: int, avoid: Array[Vector2i], avoid_dist: int) -> Array:

@@ -1,11 +1,13 @@
 [gd_resource type="Resource" script_class="WeaponData" format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/sword.tscn" id="1_04ttl"]
+[ext_resource type="Texture2D" path="res://assets/sprites/swords/swords238.png" id="1_kuki8"]
 [ext_resource type="Script" path="res://scripts/combat/weapon_data.gd" id="2_kuki8"]
 
 [resource]
 script = ExtResource("2_kuki8")
 id = &"valkyrie_blade"
 display_name = "Valkyrie Blade"
-description = "Her own sword. Balanced: the baseline every other sword is measured against."
+description = "Her own sword. Balanced. Up + attack is a rising slash that lifts her, once per jump (again after each hit)."
 scene = ExtResource("1_04ttl")
+icon = ExtResource("1_kuki8")

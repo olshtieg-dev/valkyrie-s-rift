@@ -13,7 +13,16 @@ extends Resource
 @export_multiline var description: String = ""
 ## The swing scene (a Weapon: sprite, AnimationPlayer, hitbox).
 @export var scene: PackedScene
+## Optional art swapped into the swing scene's sprite, so several weapons can
+## share one swing. Draw it blade-up, grip at the bottom center, 1:1 pixels
+## (16x16 like the rest of the world). Empty = the scene's own sprite.
+@export var swing_texture: Texture2D
+## Shown on pedestals and in the shrine menu.
 @export var icon: Texture2D
+## Tints the swing sprite and icon (lets one sword art stand in for another).
+@export var tint: Color = Color.WHITE
+## Coins at a shrine's barter stall. 0 = not for sale (found only).
+@export var price: int = 0
 
 @export_group("Attack")
 @export var damage: int = 15
@@ -22,7 +31,22 @@ extends Resource
 ## The meteor strike is always heavy regardless.
 @export var heavy_hits: bool = false
 
+## Swing speed: the swing animation's playback rate and the recovery after it.
+@export_range(0.4, 2.0, 0.05) var attack_speed: float = 1.0
+
+@export_group("Attack movement")
+## Up + attack launches her upward this fast (px/s): on the ground a launcher,
+## in the air once per airtime (refreshed by landing a hit). 0 = no lift.
+@export_range(0, 400, 10) var rising_lift: float = 230.0
+## Side attack in the air dashes her forward this fast (px/s) for a moment,
+## gravity off. Once per airtime, refreshed by landing a hit. 0 = no lunge.
+@export_range(0, 500, 10) var lunge_speed: float = 0.0
+## Scales the meteor strike's bounce off enemies and its landing shockwave.
+@export_range(0.5, 2.0, 0.05) var meteor_power: float = 1.0
+
 @export_group("Movement")
+## Jump height (multiplies the jump's launch speed).
+@export_range(0.6, 1.4, 0.05) var jump_height: float = 1.0
 ## Run speed and the momentum-boosted top speed.
 @export_range(0.5, 1.5, 0.05) var top_speed: float = 1.0
 ## How fast she gets up to speed.
@@ -37,3 +61,9 @@ extends Resource
 @export_range(0.5, 1.5, 0.05) var flutter_height: float = 1.0
 ## Flutters per airtime before armor/feather bonuses.
 @export_range(0, 4) var flutter_charges: int = 2
+
+@export_group("Sound")
+## Sfx id of the swing (see scripts/audio/sfx.gd). Empty = by element.
+@export var swing_sound: StringName = &""
+## Sfx id when a swing lands. Empty = by element (heavy hitters thud).
+@export var hit_sound: StringName = &""

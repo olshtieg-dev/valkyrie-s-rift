@@ -28,6 +28,7 @@ func _ai(delta: float) -> void:
 			play_row(1)
 			var d := to_player()
 			if state_time > 0.5 and absf(d.y) < 28.0 and signf(d.x) == facing and can_see_player(sight):
+				play_sfx(&"enemy_growl", 1.15)
 				_go(State.WINDUP)
 		State.WINDUP:
 			apply_gravity(delta)
@@ -35,12 +36,14 @@ func _ai(delta: float) -> void:
 			play_row(0)
 			sprite.position.x = roundf(sin(state_time * 90.0))
 			if state_time >= windup_time:
+				play_sfx(&"enemy_dash")
 				_go(State.DASH)
 		State.DASH:
 			apply_gravity(delta)
 			velocity.x = facing * dash_speed
 			if is_on_wall() or wall_ahead(6.0):
 				velocity.x = 0.0
+				play_sfx(&"enemy_thud", 0.8)
 				_go(State.STUN)
 			elif is_on_floor() and ledge_ahead(10.0):
 				velocity.x = 0.0

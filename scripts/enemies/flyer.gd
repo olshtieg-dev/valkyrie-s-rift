@@ -20,6 +20,12 @@ var _swoop_dir := Vector2.ZERO
 var _clock := 0.0
 
 
+func _init() -> void:
+	# Flyers are the realm's elemental creatures (frost wisps in the sky,
+	# storm bats in Valhalla, fire bats in Hel). Untick per scene/instance.
+	elemental_touch = true
+
+
 func _on_ready() -> void:
 	_home = global_position
 
@@ -41,6 +47,7 @@ func _ai(delta: float) -> void:
 			velocity = -_swoop_dir * 25.0
 			if state_time >= windup_time:
 				_swoop_dir = to_player().normalized()
+				play_sfx(&"enemy_swoop")
 				_go(State.SWOOP)
 		State.SWOOP:
 			velocity = _swoop_dir * swoop_speed

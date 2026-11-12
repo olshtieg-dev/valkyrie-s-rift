@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/kenney_tiny_dungeon/derived/thunder_hammer.png" id="1_wl62n"]
+[ext_resource type="PackedScene" path="res://scenes/sword.tscn" id="2_whgfm"]
+[ext_resource type="Script" path="res://scripts/combat/weapon_data.gd" id="3_lqlbe"]
+
+[resource]
+script = ExtResource("3_lqlbe")
+id = &"thunder_hammer"
+display_name = "Thunder Hammer"
+description = "Every blow lands heavy: shatters armor and frozen things. Slow swings, low jumps, one flutter, but a meteor strike that bounces high and shakes the ground."
+scene = ExtResource("2_whgfm")
+swing_texture = ExtResource("1_wl62n")
+icon = ExtResource("1_wl62n")
+tint = Color(1.15, 0.95, 0.45, 1)
+price = 40
+damage = 30
+element = 3
+heavy_hits = true
+attack_speed = 0.6
+rising_lift = 0.0
+meteor_power = 1.5
+jump_height = 0.85
+top_speed = 0.8
+acceleration = 0.7
+momentum_gain = 0.6
+traction = 1.6
+flutter_height = 0.75
+flutter_charges = 1

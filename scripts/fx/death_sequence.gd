@@ -13,7 +13,9 @@ extends Node2D
 
 signal finished
 
-const GIRL_TEXTURE := preload("res://assets/sprites/tiny_creatures/derived/fallen_valkyrie.png")
+## Bigger than the knight on purpose: the world is blacked out by the reveal,
+## so she gets a bigger, detailed sprite (28x24, feet on the bottom row).
+const GIRL_TEXTURE := preload("res://assets/sprites/valkyrie/fallen_valkyrie.png")
 const SHAKE_TIME := 0.95
 const FADE_TIME := 0.8
 const HOLD_UNTIL := 3.9
@@ -22,9 +24,11 @@ const SINK_TIME := 1.3
 const SINK_DISTANCE := 160.0 # past the bottom edge at the default zoom
 const FALL_AT := 1.55
 const FALL_TIME := 0.4
-## Lying on her back the sprite's left margin is the bottom; lift so her
-## outline (not the empty margin) rests on the ground.
-const LYING_LIFT := 6.0
+## Lying on her back the sprite's left side is the bottom; lift so her hair
+## (not the raised wing, which can dip past it) rests on the ground.
+const LYING_LIFT := 7.0
+## Where her head lands once she has tipped over (for the dust puff).
+const HEAD_LANDS_AT := Vector2(-16, 0)
 const OUT_TIME := 0.5
 const SKIP_AFTER := 1.3
 
@@ -112,10 +116,10 @@ func _burst() -> void:
 	if _pivot:
 		_pivot.position = _pivot_base
 		_pivot.visible = false
-	var center := Vector2(0, -8)
+	var center := Vector2(0, -11)
 
 	var ring := Burst.new()
-	ring.radius = 22.0
+	ring.radius = 20.0
 	ring.color = Color(1, 1, 1)
 	ring.debris = 0
 	ring.duration = 0.35
@@ -129,7 +133,7 @@ func _burst() -> void:
 
 	_girl = Sprite2D.new()
 	_girl.texture = GIRL_TEXTURE
-	_girl.offset = Vector2(0, -8) # origin at her feet, so she tips over from there
+	_girl.offset = Vector2(0, -GIRL_TEXTURE.get_height() / 2.0) # origin at her feet, so she tips over from there
 	_girl.z_index = 51
 	_girl.modulate = Color(3, 3, 3) # appears out of the flash
 	add_child(_girl)
@@ -153,7 +157,7 @@ func _fall() -> void:
 		dust.debris_speed = 40.0
 		dust.debris_up_only = true
 		dust.duration = 0.3
-		dust.position = Vector2(-12, 0)
+		dust.position = HEAD_LANDS_AT
 		add_child(dust)
 		dust.z_index = 52)
 	tween.chain().tween_property(_girl, "position:y", -LYING_LIFT - 1.0, 0.06)

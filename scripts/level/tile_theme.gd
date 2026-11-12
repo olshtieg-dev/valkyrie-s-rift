@@ -20,6 +20,13 @@ extends Resource
 ## Painted behind enclosed levels (caverns, shafts, arenas), then tinted dark.
 @export var background: Vector2i = Vector2i(0, 1)
 @export var background_tint: Color = Color(0.3, 0.3, 0.3)
+## Deep parallax backdrop for the realm (a scene rooted in ParallaxBackdrop),
+## instanced by the LevelGenerator at runtime behind everything else.
+@export var parallax: PackedScene
+## With a parallax backdrop, background tiles only back open air within this
+## many cells of solid ground, so the parallax shows through open space.
+## -1 paints the background everywhere, hiding the parallax in enclosed levels.
+@export_range(-1, 16) var background_reach: int = -1
 
 @export_group("Decor")
 ## Non-colliding props placed on top of floor tiles.

@@ -1,6 +1,8 @@
 extends CanvasLayer
 ## Developer overlay, debug builds only.
-##   F1 / gamepad Back  open the menu (pauses the game): warp to any level, toggles, actions
+##   F1 / gamepad Select (Back)
+##                      open the menu (pauses the game): warp to any level, toggles,
+##                      actions, and Controller setup (pick a pad, rebind its buttons)
 ##   F2                 noclip (fly with move keys, through walls)
 ##   F3                 god mode
 ##   F4                 reload the current level
@@ -18,6 +20,10 @@ var _menu: Control
 var _info: Label
 var _first_focus: Control
 var _toggle_buttons: Dictionary = {}
+var _main_page: Control
+var _controls_page: Control
+var _controller_setup: ControllerSetup
+var _loadout_page: DebugLoadoutPage
 
 
 func _ready() -> void:
@@ -32,7 +38,16 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
+	# Checked first: Esc is a key, and the key branch below swallows every key.
+	if _menu.visible and event.is_action_pressed("ui_cancel"):
+		if _controls_page.visible:
+			_show_controller_setup(false)
+		elif _loadout_page.visible:
+			_show_loadout(false)
+		else:
+			_set_menu_open(false)
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
 			KEY_F1:
 				_set_menu_open(not _menu.visible)
@@ -47,9 +62,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_BACK:
 		_set_menu_open(not _menu.visible)
-		get_viewport().set_input_as_handled()
-	elif _menu.visible and event.is_action_pressed("ui_cancel"):
-		_set_menu_open(false)
 		get_viewport().set_input_as_handled()
 
 
@@ -73,6 +85,7 @@ func _process(_delta: float) -> void:
 	if god_mode: flags.append("GOD")
 	if noclip: flags.append("NOCLIP")
 	if infinite_flutter: flags.append("INF-FLUTTER")
+	if GameManager.has_ability(&"dash"): flags.append("DASH")
 	if not flags.is_empty():
 		lines.append(" ".join(flags))
 	_info.text = "\n".join(lines)
@@ -82,6 +95,9 @@ func _process(_delta: float) -> void:
 
 func _set_menu_open(open: bool) -> void:
 	_menu.visible = open
+	_main_page.visible = true
+	_controls_page.visible = false
+	_loadout_page.visible = false
 	get_tree().paused = open
 	if open and _first_focus:
 		_first_focus.grab_focus()
@@ -141,9 +157,11 @@ func _build_ui() -> void:
 	add_child(_menu)
 
 	var panel := PanelContainer.new()
+	_main_page = panel
 	_menu.add_child(panel)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true # keep the pad's selection on screen
 	panel.add_child(scroll)
 	var pad := MarginContainer.new()
 	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -177,6 +195,10 @@ func _build_ui() -> void:
 	var tools := VBoxContainer.new()
 	tools.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	columns.add_child(tools)
+	tools.add_child(_heading("CONTROLLER", Color.WHITE))
+	_add_action(tools, "Controller setup", _show_controller_setup.bind(true))
+	tools.add_child(preload("res://scenes/ui/music_volume_slider.tscn").instantiate())
+	tools.add_child(preload("res://scenes/ui/sfx_volume_slider.tscn").instantiate())
 	tools.add_child(_heading("CHEATS", Color.WHITE))
 	_add_toggle(tools, "god_mode", "God mode  [F3]")
 	_add_toggle(tools, "infinite_flutter", "Infinite flutter")
@@ -191,6 +213,7 @@ func _build_ui() -> void:
 	tools.add_child(shapes)
 
 	tools.add_child(_heading("ACTIONS", Color.WHITE))
+	_add_action(tools, "Loadout (swords, armor, abilities)", _show_loadout.bind(true))
 	_add_action(tools, "Reload level  [F4]", func() -> void: _close_and(LevelManager.reload_level))
 	_add_action(tools, "Reroll seed", func() -> void: _close_and(LevelManager.reroll_current))
 	_add_action(tools, "Heal to full", func() -> void:
@@ -203,6 +226,11 @@ func _build_ui() -> void:
 	_add_action(tools, "+1 wing (max flutter)", func() -> void:
 		var p := _player()
 		if p: p.add_flutter_slot(1))
+	_add_action(tools, "Dash strike: grant / revoke", func() -> void:
+		if GameManager.has_ability(&"dash"):
+			GameManager.revoke_ability(&"dash")
+		else:
+			GameManager.grant_ability(&"dash"))
 	_add_action(tools, "Debug room", func() -> void: _close_and(LevelManager.go_to.bind("debug_room", "")))
 
 	tools.add_child(_heading("SPAWN  (in front of you)", Color.WHITE))
@@ -215,9 +243,51 @@ func _build_ui() -> void:
 		tools.add_child(button)
 
 	var hint := Label.new()
-	hint.text = "\nF1 / Esc to close"
+	hint.text = "\nF1 / Esc / pad Select or B to close"
 	hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.5))
 	tools.add_child(hint)
+
+	# Controller setup: a separate page in the same frame, swapped in for the columns.
+	_controls_page = PanelContainer.new()
+	_controls_page.hide()
+	_menu.add_child(_controls_page)
+	var controls_scroll := ScrollContainer.new()
+	controls_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	controls_scroll.follow_focus = true
+	_controls_page.add_child(controls_scroll)
+	var controls_pad := MarginContainer.new()
+	controls_pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for side in ["left", "right", "top", "bottom"]:
+		controls_pad.add_theme_constant_override("margin_" + side, 16)
+	controls_scroll.add_child(controls_pad)
+	_controller_setup = ControllerSetup.new()
+	_controller_setup.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_controller_setup.closed.connect(_show_controller_setup.bind(false))
+	controls_pad.add_child(_controller_setup)
+
+	# Loadout: another page swapped in the same way (scripts/ui/debug_loadout_page.gd).
+	_loadout_page = DebugLoadoutPage.new()
+	_loadout_page.hide()
+	_loadout_page.closed.connect(_show_loadout.bind(false))
+	_menu.add_child(_loadout_page)
+
+
+func _show_loadout(show_it: bool) -> void:
+	_main_page.visible = not show_it
+	_loadout_page.visible = show_it
+	if show_it:
+		_loadout_page.focus_first()
+	elif _first_focus:
+		_first_focus.grab_focus()
+
+
+func _show_controller_setup(show_it: bool) -> void:
+	_main_page.visible = not show_it
+	_controls_page.visible = show_it
+	if show_it:
+		_controller_setup.focus_first()
+	elif _first_focus:
+		_first_focus.grab_focus()
 
 
 func _heading(text: String, color: Color) -> Label:

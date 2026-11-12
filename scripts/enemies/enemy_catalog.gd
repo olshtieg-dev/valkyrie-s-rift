@@ -19,6 +19,22 @@ const ENEMIES := [
 		"move": "Rooted. Swells, spits a glob. Swing at the glob to bat it back. 2 hits."},
 	{"id": "climber", "name": "Climber", "path": "res://scenes/enemies/climber.tscn",
 		"move": "Crawls up and down walls, lunges when you're level with it. 2 hits."},
+	{"id": "cinder_mite", "name": "Cinder Mite", "path": "res://scenes/enemies/cinder_mite.tscn",
+		"move": "Hel. Tiny living ember; one placed = a swarm of 3. Skitters and hops at you; burns on touch. 1 hit each."},
+	{"id": "draugr", "name": "Draugr", "path": "res://scenes/enemies/draugr.tscn",
+		"move": "Hel, 32x36. Plods closer, rears up, slams: rubble crests run along the floor both ways (jump them). Winded after. Barely flinches. 5 hits."},
+	{"id": "bark_beetle", "name": "Bark Beetle", "path": "res://scenes/enemies/bark_beetle.tscn",
+		"move": "Yggdrasil. Tucks in, then rolls at you; rolling it's ARMORED and rolls off ledges down shafts. Dizzy after (double damage); meteor cracks it mid-roll. 2 hits."},
+	{"id": "sap_leech", "name": "Sap Leech", "path": "res://scenes/enemies/sap_leech.tscn",
+		"move": "Yggdrasil wall. Inches along the wall to stay level with you, rears back, lashes out across the shaft. Never lets go. 2 hits."},
+	{"id": "root_serpent", "name": "Root Serpent", "path": "res://scenes/enemies/root_serpent.tscn",
+		"move": "Yggdrasil ceiling (snaps to the nearest surface). Dust spills from its burrow, then a long segmented body lunges out at you, sways, pulls back. Every segment hurts; a hit anywhere counts. 4 hits."},
+	{"id": "gale_ray", "name": "Gale Ray", "path": "res://scenes/enemies/gale_ray.tscn",
+		"move": "Sky, 32 wide and flat. Glides a level lane, gently bobbing. Its back is a platform you can ride; the underside stings. 3 hits."},
+	{"id": "gale_hawk", "name": "Gale Hawk", "path": "res://scenes/enemies/gale_hawk.tscn",
+		"move": "Sky. Patrols high; when you're below it, rises over you and stoops straight down. On a miss it sticks in the ground, dazed (double damage). 2 hits."},
+	{"id": "einherjar", "name": "Einherjar", "path": "res://scenes/enemies/einherjar.tscn",
+		"move": "Valhalla. SHIELD: slashes from the front clink off. Turns slowly: jump over and strike its back, or meteor it from above; a heavy hit smashes the shield. Lunges up close; holds its ledge. 3 hits."},
 ]
 
 

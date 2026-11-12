@@ -40,13 +40,14 @@ collision_enabled = false
 
 [node name="Generator" type="Node" parent="." node_paths=PackedStringArray("ground_layer", "background_layer", "decor_layer", "entities_root")]
 script = ExtResource("3_gen")
-style = 4
-width = 48
+style = 8
+width = 72
 height = 120
 level_seed = 3301
 open_south = true
 open_north = true
 shaft_width = 13
+trunk_width = 56
 hazard_chance = 0.2
 side_room_chance = 0.6
 enemy_count = 14

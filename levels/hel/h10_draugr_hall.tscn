@@ -1,0 +1,71 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/level/level.gd" id="1_level"]
+[ext_resource type="TileSet" path="res://tilesets/world_tileset.tres" id="2_tiles"]
+[ext_resource type="Script" path="res://scripts/level/level_generator.gd" id="3_gen"]
+[ext_resource type="Resource" path="res://levels/themes/hel.tres" id="4_theme"]
+[ext_resource type="Script" path="res://scripts/level/level_exit.gd" id="5_exit"]
+[ext_resource type="PackedScene" uid="uid://0yve8ebv6cmw" path="res://scenes/coin.tscn" id="7_coin"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/draugr.tscn" id="8_draugr"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/cinder_mite.tscn" id="8_cinder_mite"]
+
+[node name="HelH10" type="Node2D" node_paths=PackedStringArray("ground", "generator")]
+script = ExtResource("1_level")
+level_id = "hel_h10"
+display_name = "Draugr Hall"
+realm = "hel"
+default_spawn = "south"
+place_shrine = false
+clear_color = Color(0.07, 0.02, 0.03, 1)
+ambient_color = Color(1, 0.84, 0.8, 1)
+ground = NodePath("Ground")
+generator = NodePath("Generator")
+
+[node name="Background" type="TileMapLayer" parent="."]
+z_index = -10
+tile_set = ExtResource("2_tiles")
+collision_enabled = false
+
+[node name="Ground" type="TileMapLayer" parent="."]
+tile_set = ExtResource("2_tiles")
+
+[node name="Decor" type="TileMapLayer" parent="."]
+z_index = -1
+tile_set = ExtResource("2_tiles")
+collision_enabled = false
+
+[node name="Entities" type="Node2D" parent="."]
+
+[node name="Generator" type="Node" parent="." node_paths=PackedStringArray("ground_layer", "background_layer", "decor_layer", "entities_root")]
+script = ExtResource("3_gen")
+style = 0
+width = 80
+height = 30
+level_seed = 1010
+open_east = true
+east_at = 0.4
+open_south = true
+south_at = 0.15
+fill_ratio = 0.42
+hazard_chance = 0.4
+enemy_count = 6
+pickup_count = 8
+tile_theme = ExtResource("4_theme")
+enemy_scenes = Array[PackedScene]([ExtResource("8_draugr"), ExtResource("8_cinder_mite")])
+pickup_scene = ExtResource("7_coin")
+ground_layer = NodePath("../Ground")
+background_layer = NodePath("../Background")
+decor_layer = NodePath("../Decor")
+entities_root = NodePath("../Entities")
+
+[node name="ExitSouth" type="Area2D" parent="."]
+script = ExtResource("5_exit")
+target_level = "hel_h08"
+target_spawn = "north"
+anchor = "south"
+
+[node name="ExitEast" type="Area2D" parent="."]
+script = ExtResource("5_exit")
+target_level = "hel_h11"
+target_spawn = "west"
+anchor = "east"

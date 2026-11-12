@@ -1,0 +1,71 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/fx/parallax_backdrop.gd" id="1_backdrop"]
+[ext_resource type="Script" path="res://scripts/fx/parallax_motes.gd" id="2_motes"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/hel/0_glow.png" id="3_layer0"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/hel/1_rocks_far.png" id="4_layer1"]
+[ext_resource type="Texture2D" path="res://assets/sprites/parallax/hel/2_rocks_near.png" id="5_layer2"]
+
+[node name="HelBackdrop" type="Node2D"]
+script = ExtResource("1_backdrop")
+bottom_color = Color(0.42, 0.11, 0.05, 1)
+top_color = Color(0.22, 0.045, 0.05, 1)
+screen_shade = 0.3
+
+[node name="FarGlow" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.08, 0.08)
+repeat_size = Vector2(384, 432)
+
+[node name="Sprite" type="Sprite2D" parent="FarGlow"]
+texture = ExtResource("3_layer0")
+centered = false
+
+[node name="RocksFar" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.25, 0.25)
+repeat_size = Vector2(384, 432)
+
+[node name="Sprite" type="Sprite2D" parent="RocksFar"]
+texture = ExtResource("4_layer1")
+centered = false
+
+[node name="EmbersFar" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.32, 0.32)
+repeat_size = Vector2(192, 216)
+repeat_times = 3
+
+[node name="Motes" type="Node2D" parent="EmbersFar"]
+script = ExtResource("2_motes")
+region = Vector2(192, 216)
+count = 36
+velocity = Vector2(0, -9)
+velocity_jitter = Vector2(3, 4)
+sway = 1.5
+sway_speed = 1.5
+size = Vector2i(1, 1)
+colors = PackedColorArray(0.7, 0.26, 0.08, 1, 0.55, 0.16, 0.07, 1)
+twinkle = 0.5
+
+[node name="RocksNear" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.45, 0.45)
+repeat_size = Vector2(384, 432)
+
+[node name="Sprite" type="Sprite2D" parent="RocksNear"]
+texture = ExtResource("5_layer2")
+centered = false
+
+[node name="Embers" type="Parallax2D" parent="."]
+scroll_scale = Vector2(0.7, 0.7)
+repeat_size = Vector2(192, 216)
+repeat_times = 3
+
+[node name="Motes" type="Node2D" parent="Embers"]
+script = ExtResource("2_motes")
+region = Vector2(192, 216)
+count = 44
+velocity = Vector2(0, -20)
+velocity_jitter = Vector2(4, 6)
+sway = 2.0
+sway_speed = 2.0
+size = Vector2i(1, 1)
+colors = PackedColorArray(1, 0.62, 0.2, 1, 0.95, 0.38, 0.1, 1, 1, 0.82, 0.4, 1)
+twinkle = 0.6

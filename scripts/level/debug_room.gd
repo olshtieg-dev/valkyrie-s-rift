@@ -4,6 +4,8 @@ extends Level
 ##   - lava strip to test hazard respawn
 ##   - training pen with slimes
 ##   - one portal per registered level, grouped by realm (W / Up / E to enter)
+##   - elements gallery past the portals: flame sword pedestal, a vine wall
+##     (burn it), then a slime boulder plugging a tunnel (freeze + shatter)
 
 const ROWS := 18
 const FLOOR_ROW := 15
@@ -21,6 +23,11 @@ const PEN_MOBS := [
 	preload("res://scenes/enemies/charger.tscn"),
 ]
 const FONT := preload("res://assets/fonts/PixelOperator8.ttf")
+const HAMMER := preload("res://data/weapons/thunder_hammer.tres")
+const FLAME := preload("res://data/weapons/flame_greatsword.tres")
+const RAPIER := preload("res://data/weapons/ice_rapier.tres")
+const SWAN_MANTLE := preload("res://data/armor/swan_mantle.tres")
+const GALLERY_WIDTH := 22
 
 @export var background: TileMapLayer
 
@@ -30,7 +37,8 @@ func _build() -> void:
 	for level: Dictionary in LevelRegistry.LEVELS:
 		if level["id"] != level_id:
 			levels.append(level)
-	var width := PORTAL_START_X + levels.size() * PORTAL_STEP + 4
+	var gallery_x := PORTAL_START_X + levels.size() * PORTAL_STEP + 2
+	var width := gallery_x + GALLERY_WIDTH + 2
 
 	# Shell
 	for y in ROWS:
@@ -67,6 +75,22 @@ func _build() -> void:
 		add_child(mob)
 	_world_label("training  (F1 > Spawn for more)", Vector2(38.5 * TILE, (FLOOR_ROW - 6) * TILE), Color(1, 1, 1, 0.5))
 
+	# First-pickup demo: a sword pedestal on top of the 9-tile ladder platform,
+	# a tiny "side route". (The shrine is placed by Level beside the spawn.)
+	var pedestal := SwordPedestal.new()
+	pedestal.name = "HammerPedestal"
+	pedestal.weapon = HAMMER
+	pedestal.position = Vector2(20.5 * TILE, (FLOOR_ROW - 9) * TILE)
+	add_child(pedestal)
+	_world_label("first pickup", Vector2(20.5 * TILE, (FLOOR_ROW - 13) * TILE), Color(1, 0.9, 0.6, 0.6))
+	# Found-only armor on the 7-tile platform. (Ember Mail and Iron Bulwark
+	# are sold at the shrine.)
+	var mantle := SwordPedestal.new()
+	mantle.name = "MantlePedestal"
+	mantle.armor = SWAN_MANTLE
+	mantle.position = Vector2(15.5 * TILE, (FLOOR_ROW - 7) * TILE)
+	add_child(mantle)
+
 	# Portals
 	spawns["default"] = Vector2(49 * TILE + TILE / 2.0, FLOOR_ROW * TILE)
 	_world_label("W / Up / E to enter", Vector2(49.5 * TILE, (FLOOR_ROW - 5) * TILE), Color(1, 1, 1, 0.5))
@@ -89,6 +113,52 @@ func _build() -> void:
 		portal.size = Vector2(2 * TILE, 3 * TILE)
 		portal.position = Vector2((x + 1) * TILE, FLOOR_ROW * TILE - 1.5 * TILE)
 		add_child(portal)
+
+	_build_elements_gallery(gallery_x)
+
+
+## Flame sword pedestal -> vine wall (only fire burns it) -> a 2-tile tunnel
+## plugged by a slime boulder (ice freezes it, a heavy hit shatters it).
+func _build_elements_gallery(gx: int) -> void:
+	_world_label("elements", Vector2((gx + 4) * TILE, 4 * TILE), Color(0.7, 0.9, 1.0, 0.7))
+	var pedestal := SwordPedestal.new()
+	pedestal.name = "FlamePedestal"
+	pedestal.weapon = FLAME
+	pedestal.position = Vector2((gx + 2.5) * TILE, FLOOR_ROW * TILE)
+	add_child(pedestal)
+	# She no longer starts with the rapier (it's Hel's first side-route find).
+	var rapier := SwordPedestal.new()
+	rapier.name = "RapierPedestal"
+	rapier.weapon = RAPIER
+	rapier.position = Vector2((gx + 0.5) * TILE, FLOOR_ROW * TILE)
+	add_child(rapier)
+
+	# Vine wall: solid rock above, 4 tiles of vines at the bottom.
+	var vine_x := gx + 6
+	for y in range(2, FLOOR_ROW - 4):
+		_tile(vine_x, y, FILL)
+	var vines := VineWall.new()
+	vines.name = "VineWall"
+	vines.size_tiles = Vector2i(1, 4)
+	vines.position = Vector2(vine_x * TILE, (FLOOR_ROW - 4) * TILE)
+	add_child(vines)
+	_world_label("burn", Vector2((vine_x + 0.5) * TILE, (FLOOR_ROW - 6) * TILE), Color(1, 0.6, 0.35, 0.7))
+
+	# Tunnel: everything above it solid, 2 tiles of headroom.
+	for x in range(vine_x + 1, vine_x + 12):
+		for y in range(2, FLOOR_ROW - 2):
+			_tile(x, y, FILL)
+	var boulder := SlimeBoulder.new()
+	boulder.name = "SlimeBoulder"
+	boulder.position = Vector2((vine_x + 6) * TILE, FLOOR_ROW * TILE)
+	add_child(boulder)
+	_world_label("freeze, then smash", Vector2((vine_x + 6) * TILE, (FLOOR_ROW - 1.5) * TILE + 34), Color(0.7, 0.9, 1.0, 0.7))
+	_world_label("through!", Vector2((vine_x + 14) * TILE, (FLOOR_ROW - 4) * TILE), Color(1, 1, 1, 0.5))
+
+
+## The test strip is lava.
+func hazard_element() -> Hit.Element:
+	return Hit.Element.FIRE
 
 
 func _tile(x: int, y: int, atlas: Vector2i) -> void:

@@ -19,6 +19,13 @@ const LIFETIME := 10.0
 const BLINK_AT := 7.0
 const PICKUP_DELAY := 0.25 # let it pop out before it can be grabbed
 const HEART_HEAL := 2
+## Coin combo: grabs within COMBO_WINDOW seconds of the last climb these
+## semitones (a major pentatonic run), so a spill rings out instead of clattering.
+const COIN_COMBO_STEPS: Array[int] = [0, 2, 4, 7, 9, 12]
+const COIN_COMBO_WINDOW := 0.6
+
+static var _coin_combo := 0
+static var _coin_combo_time := -100.0
 
 var kind: Kind = Kind.HEART
 var amount := 1
@@ -28,6 +35,19 @@ var _landed := false
 var _age := 0.0
 var _sway := 0.0
 var _sprite: Sprite2D
+
+
+## Plays the coin sound, pitched up one step per coin grabbed in quick
+## succession (resets after COIN_COMBO_WINDOW). Used by every coin source.
+static func play_coin_sound() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _coin_combo_time > COIN_COMBO_WINDOW:
+		_coin_combo = 0
+	var semitones: int = COIN_COMBO_STEPS[mini(_coin_combo, COIN_COMBO_STEPS.size() - 1)]
+	# Only advance the combo when the sound actually played (not on cooldown).
+	if Sfx.play(&"coin", -1.0, 0.0, pow(2.0, semitones / 12.0)):
+		_coin_combo += 1
+		_coin_combo_time = now
 
 
 ## Drops a pickup at `at`, popping out in a small arc.
@@ -103,5 +123,6 @@ func _on_body_entered(body: Node2D) -> void:
 			CombatFX.burst(self, global_position, 10.0, Color(1, 0.45, 0.4), 1.0, 5, 0.25)
 		Kind.COIN:
 			GameManager.add_coins(amount)
+			Pickup.play_coin_sound()
 			CombatFX.burst(self, global_position, 8.0, Color(1, 0.85, 0.3), 1.0, 3, 0.2)
 	queue_free()

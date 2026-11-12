@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ArmorData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/armor_data.gd" id="1_caimh"]
+
+[resource]
+script = ExtResource("1_caimh")
+id = &"iron_bulwark"
+display_name = "Iron Bulwark"
+description = "Heavy dwarf-forged plate. Blunts every blow, barely budges when hit, and carries an extra heart."
+tint = Color(0.82, 0.86, 0.95, 1)
+icon_color = Color(0.5, 0.55, 0.62, 1)
+price = 60
+physical = 0.25
+stagger_resist = 0.5
+bonus_hearts = 1

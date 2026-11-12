@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ArmorData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/armor_data.gd" id="1_nl1hg"]
+
+[resource]
+script = ExtResource("1_nl1hg")
+id = &"storm_hauberk"
+display_name = "Storm Hauberk"
+description = "Copper rings that drink the lightning. Thunder hurts half as much and can't jolt a flutter out of her wings."
+tint = Color(1.08, 1, 0.8, 1)
+icon_color = Color(0.85, 0.62, 0.3, 1)
+price = 45
+physical = 0.1
+thunder = 0.5

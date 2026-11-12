@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ArmorData" format=3]
+
+[ext_resource type="Script" path="res://scripts/combat/armor_data.gd" id="1_ut5kc"]
+
+[resource]
+script = ExtResource("1_ut5kc")
+id = &"swan_mantle"
+display_name = "Swan Mantle"
+description = "A cloak of swan feathers from the sky road. One more flutter, and the cold can't reach her."
+tint = Color(1, 1.02, 1.12, 1)
+icon_color = Color(0.92, 0.95, 1, 1)
+ice = 0.5
+bonus_feathers = 1

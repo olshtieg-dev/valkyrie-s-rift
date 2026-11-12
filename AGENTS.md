@@ -57,15 +57,15 @@ A shared sign-in board, so agents (and humans) can see who is working on what ri
 | `project.godot` | Project settings, input map, autoloads, physics layer names |
 | `game.tscn` | Main scene |
 | `scenes/` | Reusable scenes (player, enemies, platforms, weapons, `ui/`) |
-| `scripts/` | GDScript; `scripts/level/` holds level flow (exits, spawn points, registry, tile themes) |
+| `scripts/` | GDScript; `scripts/level/` holds level flow (exits, spawn points, registry, tile themes), `scripts/combat/` hits and sword data, `scripts/armory/` shrines, sword pedestals and the barter catalog, `scripts/pickups/` heart/coin drops, `scripts/obstacles/` element obstacles (slime boulder, vine wall), `scripts/fx/` code-drawn effects |
 | `tilesets/` | Shared `TileSet` resources |
-| `data/` | Game data resources. `data/weapons/*.tres` are `WeaponData` (swing scene, damage, element, and the movement/flutter each sword gives her) |
+| `data/` | Game data resources. `data/weapons/*.tres` are `WeaponData` (swing scene, damage, element, and the movement/flutter each sword gives her); `data/armor/*.tres` are `ArmorData` (resistances by element, bonus hearts/feathers) |
 | `assets/` | Sprites, sounds, music, fonts. See `assets/LICENSE & CREDITS.txt` before adding or redistributing |
 | `tools/` | Dev-environment setup scripts |
 
 **Autoload:** `GameManager` (`scripts/gamemanager.gd`) holds score and the player state carried across levels.
 
-**Input actions:** `move_left`, `move_right`, `move_up`, `move_down`, `jump`, `attack`, `switch_weapon`, `interact`. Use these names. Don't read raw keys.
+**Input actions:** `move_left`, `move_right`, `move_up`, `move_down`, `jump`, `attack`, `switch_weapon`, `switch_weapon_prev` (added at startup by `scripts/autoload/input_setup.gd`), `interact`. Use these names. Don't read raw keys.
 
 **2D physics layers:** 1 `world`, 2 `player`, 3 `enemy`, 5 `hazard`, 6 `one_way`.
 

@@ -1,0 +1,38 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/einherjar.gd" id="1_ai"]
+[ext_resource type="Texture2D" path="res://assets/sprites/0x72_dungeontileset_ii/derived/einherjar.png" id="2_sheet"]
+[ext_resource type="Texture2D" path="res://assets/sprites/rift_mobs/einherjar_shield.png" id="3_shield"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(10, 18)
+
+[node name="Einherjar" type="CharacterBody2D" node_paths=PackedStringArray("sprite", "shield_sprite")]
+collision_layer = 4
+collision_mask = 33
+script = ExtResource("1_ai")
+max_health = 45
+knockback_resist = 0.6
+heart_drop_chance = 0.3
+coin_drop_chance = 0.8
+coin_drop_amount = 2
+hurtbox_size = Vector2(12, 20)
+hurtbox_offset = Vector2(0, 1)
+bob_pixels = 0
+shield_sprite = NodePath("Shield")
+sprite = NodePath("Sprite2D")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -3)
+texture = ExtResource("2_sheet")
+hframes = 4
+vframes = 3
+
+[node name="Shield" type="Sprite2D" parent="."]
+z_index = 1
+position = Vector2(6, 1)
+texture = ExtResource("3_shield")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, 2)
+shape = SubResource("RectangleShape2D_body")

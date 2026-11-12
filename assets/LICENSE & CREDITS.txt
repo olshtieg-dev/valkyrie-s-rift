@@ -32,11 +32,156 @@ ENEMY SPRITES: "Tiny Creatures" by Clint Bellanger (clintbellanger.net)
   Files: assets/sprites/tiny_creatures/ (original tilemap_packed.png + License.txt)
   Expansion of Kenney's Tiny Dungeon / Tiny Town, made with Kenney's permission.
   Derived: assets/sprites/tiny_creatures/derived/fallen_valkyrie.png is the angel
-  tile (column 5, row 3) with the hair recolored blonde and the wings removed
-  (same CC0 license).
+  tile (column 5, row 3) with the hair recolored blonde and lengthened to her
+  feet, and the wings removed
+  (same CC0 license). No longer used by the death sequence (see below).
+
+
+DEATH-REVEAL GIRL: original pixel art made for this project
+  Files: assets/sprites/valkyrie/fallen_valkyrie.png (28x24, the girl inside
+  the armor with long hair, broken wings and a white dress, shown when the
+  player dies)
+  License: same as the project; no third-party source.
 
 
 HUD HEARTS & PICKUPS: "Pixel Platformer" (1.2) by Kenney (www.kenney.nl)
   Source: https://opengameart.org/content/pixel-platformer-0
   License: CC0 1.0 Universal (credit not required, given with thanks)
   Files: assets/sprites/kenney_pixel_platformer/ (original tilemap_packed.png + License.txt)
+
+
+WEAPON SPRITES (Thunder Hammer, Flame Greatsword): "Tiny Dungeon" (1.0) by Kenney (www.kenney.nl)
+  Source: https://opengameart.org/content/tiny-dungeon
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sprites/kenney_tiny_dungeon/ (original tilemap_packed.png + License.txt)
+  Derived: derived/thunder_hammer.png is tile 117 (column 9, row 9) unchanged;
+  derived/flame_greatsword.png is tile 106 (column 10, row 8) with the blade
+  recolored yellow/orange (same CC0 license).
+
+
+SOUND EFFECTS: "The Essential Retro Video Game Sound Effects Collection [512 sounds]"
+  by Juhani Junkala (SubspaceAudio)
+  Source: https://opengameart.org/content/512-sound-effects-8-bit-style
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sounds/juhani_junkala_retro_512/ (selected .wav files, renamed;
+  INFO.txt from the pack states the license). Unmodified audio.
+
+
+SOUND EFFECTS: "80 CC0 RPG SFX", "100 CC0 SFX" and "100 CC0 SFX #2" by rubberduck
+  Source: https://opengameart.org/content/80-cc0-rpg-sfx
+          https://opengameart.org/content/100-cc0-sfx
+          https://opengameart.org/content/100-cc0-sfx-2
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sounds/rubberduck/ (selected .ogg files, renamed; unmodified
+  except thunder_crack.ogg, which is sfx100v2_thunder_01.ogg trimmed to
+  0.65-2.05 s with a fade-out)
+
+
+SOUND EFFECTS: "Swishes Sound Pack" and "RPG Sound Pack" by artisticdude
+  Source: https://opengameart.org/content/swishes-sound-pack
+          https://opengameart.org/content/rpg-sound-pack
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sounds/artisticdude/ (selected .wav files, renamed, unmodified)
+
+
+SOUND EFFECTS: "Large Wings Flap" by AntumDeluge
+  (itself based on "fast simple chop 5" by dave.des, https://freesound.org/s/127197/)
+  Source: https://opengameart.org/content/large-wings-flap
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sounds/antumdeluge_wings_flap/ (README.txt from the pack)
+  Derived: wing_flutter_1..3.wav are the three single flaps cut out of
+  wings_flap_large.flac (0.55 s each), pitched up 3 semitones and faded out so
+  they sound like small, weak wings (same CC0 license).
+
+
+SOUND EFFECTS: "Flap, Splat, Poo (Yo Frankie!)" by the Blender Foundation
+  (submitted to OpenGameArt by Lamoot)
+  Source: https://opengameart.org/content/flap-splat-poo-yo-frankie
+  License: CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/)
+  Attribution required: "Sound effects from Yo Frankie! by the Blender Foundation"
+  Files: assets/sounds/yo_frankie/wing_flutter_small.wav (bird_flap.flac) and
+  projectile_splat.wav (bird_splat.flac), converted from FLAC to 16-bit WAV,
+  otherwise unmodified.
+
+
+MUSIC: Realm soundtracks (hel, yggdrasil, sky, valhalla)
+  Original compositions written for Valkyrie's Rift (generated as MIDI by a
+  project script); no third-party melodies or recordings.
+  Files: assets/music/realms/*.mid (sources) and *.ogg (seamless loops rendered
+  with FluidSynth, normalized to about -18 LUFS)
+  Rendered with the "GeneralUser GS" SoundFont v1.47 by S. Christian Collins
+  Source: https://schristiancollins.com/generaluser.php
+  License: GeneralUser GS License v2.0: "You may use GeneralUser GS without
+  restriction for your own music creation, private or commercial." Its samples
+  allow full use in music production, including commercial recordings.
+  (Only rendered audio ships; the SoundFont itself is not redistributed.)
+
+
+BACKGROUNDS: Realm parallax layers (hel, yggdrasil, sky, valhalla)
+  Original pixel art made for Valkyrie's Rift, generated procedurally by a
+  project script (tools/gen_parallax.py); no third-party images.
+  Files: assets/sprites/parallax/<realm>/*.png
+  License: same as the project (no external attribution required).
+
+
+MUSIC: "Workshop" loop (debug room / prototype)
+  Original composition for Valkyrie's Rift, same method and license terms as the
+  realm soundtracks above (rendered with GeneralUser GS v1.47).
+  Files: assets/music/realms/workshop.mid, assets/music/realms/workshop.ogg
+
+
+MOB SPRITES (Draugr, Einherjar, Sap Leech): "16x16 DungeonTileset II" (v1.7) by 0x72
+  Source: https://0x72.itch.io/dungeontileset-ii
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sprites/0x72_dungeontileset_ii/0x72_DungeonTilesetII_v1.7.png
+  (original atlas; the pack ships no separate license file, its itch.io page
+  states CC0).
+  Derived (same CC0 license), frames laid out as animation strips, unscaled:
+    derived/draugr.png = big_zombie_run_anim f0-3 (32x36 each)
+    derived/einherjar.png = rows knight_m_idle_anim, knight_m_run_anim,
+      knight_m_hit_anim (16x28 each)
+    derived/sap_leech.png = slug_anim f0-3 (16x23 each)
+
+
+MOB SPRITES (Cinder Mite, Bark Beetle, Gale Hawk): "Tiny Creatures" (see above),
+  used straight from assets/sprites/tiny_creatures/tilemap_packed.png
+  (flame col 5 row 5, beetle col 3 row 14, eagle col 4 row 13).
+
+
+MOB SPRITES (Gale Ray, Root Serpent, Einherjar shield): original pixel art made
+  for this project, in the Tiny Creatures palette and outline color
+  Files: assets/sprites/rift_mobs/gale_ray.png (2 frames, 32x12),
+  root_serpent.png (head 12x12, body 12x12, tail 10x12),
+  einherjar_shield.png (8x12)
+  License: same as the project; no third-party source.
+
+
+SOUND EFFECTS: Footsteps and landings, from "The Essential Retro Video Game
+  Sound Effects Collection [512 sounds]" by Juhani Junkala (SubspaceAudio)
+  Source: https://opengameart.org/content/512-sound-effects-8-bit-style
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sounds/juhani_junkala_moves/
+  Derived (same CC0 license): step_stone_1..3 = sfx_movement_footsteps1a, 1b, 5;
+  step_bark_1..2 = single steps cut from sfx_movement_footstepsloop3_slow,
+  low-passed at 5 kHz; step_cloud_1..2 = single steps cut from
+  sfx_movement_footstepsloop4_slow, low-passed at 2.5 kHz; step_metal_1..2 =
+  sfx_sounds_impact3, 4; land_soft_1..2 = sfx_movement_jump14_landing,
+  jump9_landing; land_heavy_1..2 = sfx_movement_jump17_landing, jump19_landing.
+  All peak-normalized (-6 dB, cloud and metal steps -8 dB), mono 16-bit WAV.
+
+
+SOUND EFFECTS: Enemy sounds, from "The Essential Retro Video Game Sound
+  Effects Collection [512 sounds]" by Juhani Junkala (SubspaceAudio)
+  Source: https://opengameart.org/content/512-sound-effects-8-bit-style
+  License: CC0 1.0 Universal (credit not required, given with thanks)
+  Files: assets/sounds/juhani_junkala_enemies/ (INFO.txt from the pack states
+  the license). Renamed, unmodified: hop = sfx_movement_jump16; hop_small =
+  sfx_movement_jump12; lunge = sfx_movement_jump8; swell =
+  sfx_sounds_interaction20; thud = sfx_sounds_impact11; fall =
+  sfx_sounds_falling1; dive = sfx_sounds_falling3; roll = sfx_sounds_falling5;
+  poof_1..2 = sfx_exp_shortest_soft2, 3; crumble = sfx_exp_shortest_soft8;
+  die_big = sfx_deathscream_alien3; screech = sfx_deathscream_alien2;
+  screech_small = sfx_deathscream_alien6; slam = sfx_wpn_cannon4.
+  Derived (same CC0 license): growl = first 0.5 s of sfx_deathscream_alien1,
+  0.15 s fade-out; rumble = first 0.55 s of sfx_sound_mechanicalnoise4,
+  0.05 s fade-in, 0.15 s fade-out.
