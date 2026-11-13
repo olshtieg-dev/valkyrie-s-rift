@@ -1,7 +1,8 @@
 class_name LevelExit
 extends Area2D
 ## Doorway to another level. Edge exits trigger on touch; portals
-## (requires_interact) wait for the interact button (W / Up / E).
+## (requires_interact) wait for an up press (`interact`: W / Up / E, D-pad or
+## stick up), when the player's can_interact() agrees.
 ##
 ## If `anchor` names a generator opening ("west", "east", "north", "south"),
 ## the Level snaps this exit onto that opening at load time.
@@ -83,7 +84,8 @@ func _on_body_exited(body: Node2D) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	if requires_interact and _player_inside and Input.is_action_just_pressed("interact"):
+	if requires_interact and _player_inside and Input.is_action_just_pressed("interact") \
+			and (not _player_inside.has_method("can_interact") or _player_inside.call("can_interact")):
 		_travel()
 
 

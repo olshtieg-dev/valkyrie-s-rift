@@ -315,6 +315,10 @@ func _close() -> void:
 		return
 	_closing = true
 	visible = false
+	# Keep what she bought or changed here through a death in this level
+	# (coins are already spent for good).
+	if is_instance_valid(_player):
+		GameManager.commit_player_state(_player)
 	# Unpause a frame later so the button press that closed the menu doesn't
 	# also register as a jump or attack.
 	await get_tree().process_frame

@@ -185,3 +185,36 @@ SOUND EFFECTS: Enemy sounds, from "The Essential Retro Video Game Sound
   Derived (same CC0 license): growl = first 0.5 s of sfx_deathscream_alien1,
   0.15 s fade-out; rumble = first 0.55 s of sfx_sound_mechanicalnoise4,
   0.05 s fade-in, 0.15 s fade-out.
+
+
+BOOT / INTRO / TITLE ART: original pixel art made for Valkyrie's Rift
+  Generated procedurally by a project script (tools/gen_title_art.py); no
+  third-party images except where noted.
+  Files: assets/sprites/title/studio_mark.png (generic olshtieg-dev badge),
+  claude_mark.png (generic starburst for the "made with Claude AI" card),
+  intro_backdrop.png, yggdrasil.png, warlord.png (the Hel warlord who cuts
+  her down in the intro: 6 frames of 30x44, idle + walk)
+  Derived: village_girl.png is the death-reveal girl
+  (assets/sprites/valkyrie/fallen_valkyrie.png) with her wings cut away.
+  The intro's small monsters and the cherub are tiles of "Tiny Creatures";
+  its armored knights (knight_m, knight_f), ogre, big zombie and big demon are
+  animation rows of "16x16 DungeonTileset II" by 0x72 (both credited above),
+  read straight from the original atlases. intro_backdrop.png is a storm scene.
+  Title scene layers (original): title_mountains_far.png, title_mountains_near.png,
+  title_forest_far.png, title_hill.png, title_frame.png (framing trees and
+  grass), yggdrasil_glow.png (runes and apples glow layer).
+  License: same as the project (no external attribution required).
+
+GODOT LOGO (assets/sprites/title/godot_mark.png, "made with Godot" card)
+  Author: Andrea Calabro
+  Source: https://godotengine.org/press/ (the project's default res://icon.svg)
+  License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+  Changes: tile background removed, rasterised to 36x34 pixel art in three
+  colours by tools/gen_title_art.py.
+
+PLAYER ARMOR SKINS (assets/sprites/valkyrie/skins/*.png)
+  Shieldmaiden, Hel-Forged, Rootwarden and Einherjar Gold: recoloured and
+  re-detailed copies of the player sheets knight.png (analogStudios_, via the
+  Brackeys pack, CC0, credited above) and flutterfall.png, made by
+  tools/gen_player_skins.py. The original sheets are unchanged.
+  License: same as the project (no external attribution required).

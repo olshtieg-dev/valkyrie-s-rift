@@ -23,6 +23,26 @@ var damage_mult := 1.0
 signal landed(target: Node)
 var _landed_this_swing := false
 
+## The swing art's own scale and offset, before reach (see _apply_reach).
+var _art_scale := Vector2.ONE
+var _art_offset := Vector2.ZERO
+## Turns the art so its blade points along +x: the 32px scene art leans
+## up-right (45 degrees), a swing_texture stands blade-up (90).
+var _art_held_rotation := PI / 4.0
+
+## Fast swings carry the hitbox a long way between physics frames (the
+## rapier's thrust crosses ~50px in under three), so overlap signals alone
+## skip what it passes over. Each physics frame of a swing also sweeps the
+## hitbox from its last pose to this one in steps of about SWEEP_STEP px,
+## striking what it crosses. Every target is struck at most once per swing.
+const SWEEP_STEP := 3.0
+const SWEEP_MAX_STEPS := 24
+var _sweeping := false
+var _from_rot := 0.0
+var _from_pos := Vector2.ZERO
+var _from_hitbox_pos := Vector2.ZERO
+var _struck := {}
+
 func _ready() -> void:
 	# Safety check in case you forget to assign the node in Inspector
 	if not anim_player:
@@ -40,6 +60,9 @@ func _ready() -> void:
 	if sword_sprite:
 		sword_sprite.visible = false
 		_apply_swing_texture()
+		_art_scale = sword_sprite.scale
+		_art_offset = sword_sprite.offset
+	_apply_reach()
 
 	_disable_hitbox()
 	
@@ -64,6 +87,10 @@ func swing(speed: float = 1.0) -> bool:
 	
 	var animation_to_play: StringName = attack_animation if anim_player.has_animation(attack_animation) else anim_player.get_animation_list()[0]
 	anim_player.play(animation_to_play, -1, speed)
+	anim_player.advance(0.0) # pose the first frame now, so the sweep starts there
+	_struck.clear()
+	_sweeping = hitbox != null and hitbox.shape != null
+	_mark_sweep_pose()
 	Sfx.play(Sfx.swing_id(data), -1.0, 0.0, lerpf(1.0, speed, 0.3))
 	return true
 
@@ -100,7 +127,10 @@ func _on_area_entered(area: Area2D) -> void:
 
 func _apply_hit(target: Node2D) -> bool:
 	if target == owner or target.is_in_group("player"): return false # Don't hit yourself
+	if _struck.has(target.get_instance_id()): return false # once per swing
 	var delivered := Hit.deliver(target, make_hit())
+	if delivered:
+		_struck[target.get_instance_id()] = true
 	if delivered and not _landed_this_swing:
 		_landed_this_swing = true
 		Sfx.play(Sfx.hit_id(data))
@@ -123,10 +153,71 @@ func _apply_hits_from_overlaps() -> void:
 
 	if not hit_any:
 		for enemy in get_tree().get_nodes_in_group("enemy"):
-			if enemy is Node2D and enemy.global_position.distance_to(global_position) <= fallback_hit_radius:
+			if enemy is Node2D and enemy.global_position.distance_to(global_position) <= fallback_hit_radius * reach():
 				_apply_hit(enemy)
 
-func _on_animation_finished(_anim_name: StringName) -> void:
+func _physics_process(_delta: float) -> void:
+	if _sweeping and is_swinging():
+		_sweep()
+
+
+## Sweeps the hitbox from the pose marked last frame to the current one.
+func _sweep() -> void:
+	var shape := hitbox.shape
+	var parent_xf: Transform2D = (get_parent() as Node2D).global_transform if get_parent() is Node2D else Transform2D.IDENTITY
+	var from := parent_xf * _sweep_pose(0.0)
+	var to := parent_xf * _sweep_pose(1.0)
+	var travel := 0.0
+	for p: Vector2 in _shape_points(shape):
+		travel = maxf(travel, (to * p).distance_to(from * p))
+	var steps := clampi(ceili(travel / SWEEP_STEP), 1, SWEEP_MAX_STEPS)
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape
+	query.collision_mask = collision_mask
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+	query.exclude = [get_rid()]
+	var space := get_world_2d().direct_space_state
+	for i in range(1, steps + 1):
+		query.transform = parent_xf * _sweep_pose(float(i) / steps)
+		for result in space.intersect_shape(query, 16):
+			var collider: Object = result["collider"]
+			if collider is Area2D:
+				_on_area_entered(collider as Area2D)
+			elif collider is Node2D:
+				_apply_hit(collider as Node2D)
+	_mark_sweep_pose()
+
+
+## The hitbox's transform in the parent's space, `t` of the way from the
+## marked pose to the current one (only rotation and positions animate).
+func _sweep_pose(t: float) -> Transform2D:
+	var root := Transform2D(lerp_angle(_from_rot, rotation, t), scale, 0.0, _from_pos.lerp(position, t))
+	return root * Transform2D(hitbox.rotation, hitbox.scale, hitbox.skew, _from_hitbox_pos.lerp(hitbox.position, t))
+
+
+func _mark_sweep_pose() -> void:
+	_from_rot = rotation
+	_from_pos = position
+	if hitbox:
+		_from_hitbox_pos = hitbox.position
+
+
+static func _shape_points(shape: Shape2D) -> Array[Vector2]:
+	if shape is SegmentShape2D:
+		return [shape.a, shape.b]
+	if shape is RectangleShape2D:
+		var e: Vector2 = shape.size / 2.0
+		return [-e, e, Vector2(e.x, -e.y), Vector2(-e.x, e.y)]
+	return [Vector2.ZERO]
+
+
+func _on_animation_finished(anim_name: StringName) -> void:
+	# A swing that ran to its end still covers its last stretch (cancel_swing
+	# passes no name: a switched-away sword strikes nothing more).
+	if _sweeping and anim_name != &"":
+		_sweep()
+	_sweeping = false
 	_disable_hitbox()
 	if sword_sprite:
 		sword_sprite.visible = false
@@ -154,3 +245,35 @@ func _apply_swing_texture() -> void:
 	sword_sprite.scale = Vector2.ONE
 	sword_sprite.offset = Vector2(0, -(tex.get_height() / 2.0 - 1.0))
 	sword_sprite.rotation += PI / 4.0
+	_art_held_rotation = PI / 2.0
+
+
+## WeaponData.reach (1.0 without data).
+func reach() -> float:
+	return data.reach if data else 1.0
+
+
+## Reach scales the whole swing about her hand (hitbox, animated positions).
+## The art is scaled back to its own 1:1 pixels and its offset pushed out by
+## the same factor, so it stays centered on the larger hitbox without
+## resampling: past 1.0 the hitbox reaches a little beyond the blade.
+func _apply_reach() -> void:
+	var r := reach()
+	if is_equal_approx(r, 1.0):
+		return
+	scale = Vector2(r, r)
+	if sword_sprite:
+		sword_sprite.scale = _art_scale / r
+		sword_sprite.offset = _art_offset * r
+
+
+## Puts this sword's art on `sprite` held straight out: grip at the sprite's
+## origin, blade along +x, the same pixels as the swing. For poses outside a
+## swing (the dash brandish); the caller sets position and tint.
+func pose_held_art(sprite: Sprite2D) -> void:
+	if not sword_sprite:
+		return
+	sprite.texture = sword_sprite.texture
+	sprite.scale = _art_scale
+	sprite.offset = _art_offset
+	sprite.rotation = _art_held_rotation

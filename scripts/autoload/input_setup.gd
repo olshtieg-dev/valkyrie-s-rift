@@ -7,7 +7,10 @@ extends Node
 ##   B / Circle    dash (and menu back)   (keyboard: C dash)
 ##   RT / R2       next sword        LT / L2       previous sword
 ##                                   (keyboard: Q next, R previous)
-##   left stick / D-pad  move        D-pad up      interact
+##   left stick / D-pad  move        up (D-pad / stick)  interact
+##                 (interact = press up: it always follows move_up's pad
+##                 bindings, plus D-pad up and left stick up; keyboard W / Up / E.
+##                 O / Circle is kept off it, free for a future attack button)
 ##   Back / Select debug menu (debug builds)
 ##   RB / R1, LB / L1, Y / Triangle  deliberately unbound in gameplay: reserved
 ##                 for future abilities and an ultimate (see RESERVED_BUTTONS)
@@ -113,8 +116,10 @@ signal controls_changed
 
 const CONFIG_PATH := "user://controls.cfg"
 ## Saved as [meta] version. Files without it (version 1) predate the R2/L2-only
-## sword layout; see LEGACY_DEFAULTS.
-const CONFIG_VERSION := 2
+## sword layout; see LEGACY_DEFAULTS. Version 2 files still saved a rebindable
+## `interact` (often on O / Circle); since version 3 it isn't saved or
+## rebindable, it mirrors up (_sync_interact), so their entry is dropped.
+const CONFIG_VERSION := 3
 ## Version-1 default pad bindings (as saved by _encode) that are now obsolete:
 ## swords were also on Triangle / R1 / L1. A version-1 file whose binding for
 ## one of these actions is exactly this set was never customised, so it's
@@ -130,7 +135,6 @@ const REBINDABLE := [
 	["dash", "Dash"],
 	["switch_weapon", "Next sword"],
 	["switch_weapon_prev", "Prev sword"],
-	["interact", "Interact"],
 	["move_up", "Up / aim up"],
 	["move_down", "Down / drop"],
 	["move_left", "Left"],
@@ -139,6 +143,7 @@ const REBINDABLE := [
 ]
 ## Menu actions that copy a gameplay action's pad bindings, so a remapped pad
 ## can also drive menus (confirm = Jump). Keyboard keys are untouched.
+## (`interact` copies move_up the same way; see _sync_interact.)
 const MENU_MIRRORS := {
 	"ui_accept": "jump",
 	"ui_up": "move_up",
@@ -294,6 +299,32 @@ func _sync_menus() -> void:
 			InputMap.action_erase_event(menu_action, e)
 		for e in get_bindings(MENU_MIRRORS[menu_action]):
 			InputMap.action_add_event(menu_action, e.duplicate())
+	_sync_interact()
+
+
+## Interact is "press up": its pad bindings are move_up's, plus D-pad up and
+## left stick up so it works even if up was remapped, with move_up's deadzone
+## so a half-tilted stick doesn't interact. Keyboard keys (W / Up / E, from
+## project.godot) are untouched. Nothing else (O / Circle included) is added.
+func _sync_interact() -> void:
+	if not InputMap.has_action("interact"):
+		return
+	for e in get_bindings("interact"):
+		InputMap.action_erase_event("interact", e)
+	var up: Array[InputEvent] = get_bindings("move_up")
+	var dpad := InputEventJoypadButton.new()
+	dpad.button_index = JOY_BUTTON_DPAD_UP
+	var stick := InputEventJoypadMotion.new()
+	stick.axis = JOY_AXIS_LEFT_Y
+	stick.axis_value = -1.0
+	for extra: InputEvent in [dpad, stick]:
+		if not up.any(func(e: InputEvent) -> bool: return _same_input(e, extra)):
+			extra.device = active_device()
+			up.append(extra)
+	for e in up:
+		InputMap.action_add_event("interact", e.duplicate())
+	if InputMap.has_action("move_up"):
+		InputMap.action_set_deadzone("interact", InputMap.action_get_deadzone("move_up"))
 
 
 func _apply_device() -> void:
@@ -366,13 +397,14 @@ func _load() -> void:
 		return
 	selected_guid = cfg.get_value("device", "guid", "")
 	selected_name = cfg.get_value("device", "name", "")
-	var legacy: bool = cfg.get_value("meta", "version", 1) < CONFIG_VERSION
+	var version: int = cfg.get_value("meta", "version", 1)
+	var legacy: bool = version < CONFIG_VERSION
 	for row: Array in REBINDABLE:
 		var action: StringName = row[0]
 		if not cfg.has_section_key("bindings", action) or not InputMap.has_action(action):
 			continue
 		var codes: PackedStringArray = cfg.get_value("bindings", action, PackedStringArray())
-		if legacy and _is_legacy_default(action, codes):
+		if version < 2 and _is_legacy_default(action, codes):
 			continue # keep the new default set up in _add_sword_rotation_actions
 		for e in get_bindings(action):
 			InputMap.action_erase_event(action, e)
@@ -380,6 +412,8 @@ func _load() -> void:
 			var e := _decode(code)
 			if e:
 				InputMap.action_add_event(action, e)
+	# Version < 3: the saved `interact` (e.g. O) is simply not read any more,
+	# since it's no longer in REBINDABLE; re-saving drops it from the file.
 	if legacy:
 		_save() # stamp the version so the migration runs once
 

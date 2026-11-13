@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="valkyrie's-rift"
-run/main_scene="uid://8fdupungfx1s"
+run/main_scene="res://scenes/ui/boot.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -23,6 +23,7 @@ LevelManager="*res://scripts/autoload/level_manager.gd"
 DebugMenu="*res://scripts/autoload/debug_menu.gd"
 MusicPlayer="*res://scripts/audio/music_player.gd"
 Sfx="*res://scripts/audio/sfx.gd"
+SaveGame="*res://scripts/autoload/save_game.gd"
 
 [input]
 

@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="WeaponData" format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3 uid="uid://2mad3gukdlny"]
 
-[ext_resource type="PackedScene" path="res://scenes/sword2.tscn" id="1_5hd6p"]
-[ext_resource type="Texture2D" path="res://assets/sprites/swords/swords160.png" id="1_lcvsy"]
-[ext_resource type="Script" path="res://scripts/combat/weapon_data.gd" id="2_lcvsy"]
+[ext_resource type="PackedScene" uid="uid://c507c5jmfoksv" path="res://scenes/sword2.tscn" id="1_5hd6p"]
+[ext_resource type="Texture2D" uid="uid://bdvw0ick0lyu4" path="res://assets/sprites/swords/swords160.png" id="1_lcvsy"]
+[ext_resource type="Script" uid="uid://d3sk1ruwjbthl" path="res://scripts/combat/weapon_data.gd" id="2_lcvsy"]
 
 [resource]
 script = ExtResource("2_lcvsy")
@@ -15,6 +15,7 @@ tint = Color(0.8, 0.95, 1.15, 1)
 damage = 10
 element = 1
 attack_speed = 1.5
+up_offset = Vector2(-6, -7)
 rising_lift = 150.0
 lunge_speed = 340.0
 jump_height = 1.05

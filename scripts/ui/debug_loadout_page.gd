@@ -169,6 +169,8 @@ func _build_armor(parent: Control, p: Node) -> void:
 		box.focus_entered.connect(_show_info.bind(suit.display_name, "%s  %s" % [suit.summary(), suit.description]))
 		row.add_child(box)
 		_remember("armor:" + suit.resource_path, box)
+	# Cosmetic only (PlayerSkins): cycles her look, kept as a setting.
+	_stepper(parent, "skin", "Skin  %s" % PlayerSkins.current_name(), true, true)
 
 
 func _build_abilities(parent: Control, _p: Node) -> void:
@@ -190,7 +192,7 @@ func _build_stats(parent: Control, p: Node) -> void:
 			containers > 1, containers < MAX_HEART_CONTAINERS)
 	var bonus: int = p.flutter_bonus
 	_stepper(parent, "wings", "Wing bonus  +%d   (flutters %d)" % [bonus, p.max_flutter_charges],
-			bonus > 0, bonus < p.FLUTTER_CAP)
+			bonus > 0, bonus < p.FLUTTER_CAP - 1) # enough for a 1-flutter sword to reach the cap
 
 
 func _show_info(title: String, text: String) -> void:
@@ -249,6 +251,8 @@ func _on_step(which: String, step: int) -> void:
 	if p == null:
 		return
 	match which:
+		"skin":
+			PlayerSkins.cycle(step, get_tree())
 		"hearts":
 			if step > 0:
 				p.add_heart_container(1)

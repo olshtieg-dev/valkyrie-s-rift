@@ -73,9 +73,10 @@ func _configure_detours() -> void:
 
 
 ## Each find rests at the far end of its own detour: a pedestal (sword or
-## armor), a heart vessel, or an ability shrine ("ability:<id>"). Taken finds
-## stay taken (each remembers, keyed by this level + its name: the first is
-## "SideRouteFind", later ones "SideRouteFind2", ...).
+## armor), a heart vessel, a wing feather ("wings") or an ability shrine
+## ("ability:<id>"). Taken finds stay taken (each remembers, keyed by this
+## level + its name: the first is "SideRouteFind", later ones
+## "SideRouteFind2", ...).
 func _place_side_route_find() -> void:
 	var finds := LevelRegistry.finds_of(LevelRegistry.find(level_id))
 	for i in mini(finds.size(), generator.find_spots.size()):
@@ -83,6 +84,8 @@ func _place_side_route_find() -> void:
 		var node: Node2D
 		if find == "heart_container":
 			node = HeartVessel.new()
+		elif find == "wings":
+			node = WingFeather.new()
 		elif find.begins_with("ability:"):
 			var shrine := AbilityShrine.new()
 			shrine.ability = StringName(find.trim_prefix("ability:"))

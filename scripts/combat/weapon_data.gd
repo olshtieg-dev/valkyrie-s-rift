@@ -33,6 +33,15 @@ extends Resource
 
 ## Swing speed: the swing animation's playback rate and the recovery after it.
 @export_range(0.4, 2.0, 0.05) var attack_speed: float = 1.0
+## Swing reach: grows the hitbox (and the close-range catch radius) about her
+## hand in every direction, meteor strike included. The art keeps its pixels
+## and is only pushed outward to stay centered on the hitbox, so above 1.0 the
+## hitbox runs a little past the blade.
+@export_range(0.5, 2.0, 0.05) var reach: float = 1.0
+## Where the overhead (up + attack) swing turns, moved from her side-swing
+## hand, in world pixels (x = ahead of her, y = down). Negative y lifts the
+## swing above her helmet, so it starts over her head rather than at her face.
+@export var up_offset: Vector2 = Vector2(0, -4)
 
 @export_group("Attack movement")
 ## Up + attack launches her upward this fast (px/s): on the ground a launcher,

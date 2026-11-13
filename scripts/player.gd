@@ -39,6 +39,12 @@ const METEOR_SHOCK_RADIUS = 34.0
 const METEOR_SHOCK_DAMAGE = 15
 const METEOR_TRAIL_INTERVAL = 0.03
 const METEOR_TRAIL_TINT = Color(1.0, 0.82, 0.45, 0.55)
+## A fresh jump / attack / dash press cancels the strike (_meteor_cancel_input),
+## but not within this long of starting it, so the press that started it (or a
+## bouncy double-tap) can't. Limited per airtime so dive-cancel loops can't
+## hover her (the windup stalls her fall).
+const METEOR_CANCEL_GRACE = 0.04
+const METEOR_CANCELS_PER_AIRTIME = 1
 const METEOR_SWORD_TEXTURE = preload("res://assets/sprites/swords/swords238.png")
 # Pivot-local sword placement: overhead at the start, under her feet in the plunge.
 const METEOR_SWORD_UP = Vector2(0, -15)
@@ -77,9 +83,12 @@ const DROP_THROUGH_TIME = 0.25
 const NOCLIP_SPEED = 320.0
 
 # --- PROGRESSION VARIABLES ---
-## Flutters per airtime = the active sword's base + flutter_bonus (wings
-## pickups, later armor), never above this, so she can't truly fly.
-const FLUTTER_CAP = 4
+## Flutters per airtime = the active sword's base (1-3) + flutter_bonus
+## (wing feathers, the "wings" side-route finds; about six across the climb)
+## + the armor's bonus_feathers. The cap is on that total, never the bonus
+## alone: swords keep their flutter difference until she nears the cap, and
+## she can't truly fly.
+const FLUTTER_CAP = 8
 var max_flutter_charges = 2
 var flutter_charges_left = 2
 var flutter_bonus = 0
@@ -117,6 +126,9 @@ var attack_lock_timer = 0.0     # meteor landing lag
 var meteor_windup_timer = 0.0
 var meteor_trail_timer = 0.0
 var meteor_sword: Sprite2D
+var meteor_cancel_grace = 0.0
+var meteor_cancels_left = METEOR_CANCELS_PER_AIRTIME
+var _meteor_tween: Tween
 var weapon_anchor_base := Vector2.ZERO
 var attack_buffer := 0.0
 var attack_cooldown := 0.0
@@ -181,6 +193,8 @@ var active_weapon: Node2D
 # Slots 0 and 1, for the old HUD switch button.
 var weapon_1_instance: Node2D
 var weapon_2_instance: Node2D
+## The scene's own SpriteFrames (original skin); skins are copies of it.
+var _base_frames: SpriteFrames
 
 func _ready() -> void:
 	add_to_group("player") # Vital for enemies to find you
@@ -237,6 +251,22 @@ func _ready() -> void:
 		GameManager.own_weapon(data)
 	GameManager.own_armor(armor)
 	animated_sprite.self_modulate = armor.tint if armor else Color.WHITE
+	_base_frames = animated_sprite.sprite_frames
+	apply_skin()
+
+## Re-skins her sprite to the chosen PlayerSkins skin, keeping the current
+## animation and frame. Called on spawn and whenever the skin is changed.
+func apply_skin() -> void:
+	if _base_frames == null:
+		return
+	var anim: StringName = animated_sprite.animation
+	var frame: int = animated_sprite.frame
+	var playing: bool = animated_sprite.is_playing()
+	animated_sprite.sprite_frames = PlayerSkins.skinned(_base_frames, PlayerSkins.current())
+	animated_sprite.animation = anim
+	animated_sprite.frame = frame
+	if playing:
+		animated_sprite.play()
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
@@ -270,7 +300,8 @@ func _physics_process(delta: float) -> void:
 
 	if attack_cooldown > 0.0:
 		attack_cooldown = maxf(0.0, attack_cooldown - delta)
-	if Input.is_action_just_pressed("attack"):
+	var dive_cancel := _meteor_cancel_input(delta) if is_dive_attacking else &""
+	if Input.is_action_just_pressed("attack") and dive_cancel != &"attack":
 		attack_buffer = ATTACK_BUFFER_TIME
 	elif attack_buffer > 0.0:
 		attack_buffer = maxf(0.0, attack_buffer - delta)
@@ -339,6 +370,7 @@ func _physics_process(delta: float) -> void:
 		lunge_timer = 0.0
 		air_lift_ready = true
 		air_lunge_ready = true
+		meteor_cancels_left = METEOR_CANCELS_PER_AIRTIME
 		
 		if flutter_charges_left < max_flutter_charges:
 			flutter_charges_left = max_flutter_charges 
@@ -399,6 +431,7 @@ func _physics_process(delta: float) -> void:
 	# --- 4. Animation ---
 	_handle_animations()
 	var sfx_fall_speed: float = velocity.y
+	_try_step_up(direction, delta) # STEP-UP: small lips don't stop her
 	move_and_slide()
 	_sfx_landing(sfx_fall_speed)
 	_update_last_safe_position()
@@ -443,6 +476,18 @@ func _can_attack() -> bool:
 	return hurt_stun_timer <= 0.0 and attack_lock_timer <= 0.0 and attack_cooldown <= 0.0 \
 			and not is_dive_attacking and active_weapon != null \
 			and not (active_weapon.has_method("is_swinging") and active_weapon.is_swinging())
+
+
+## Whether an `interact` press (up) should use what she's standing at. Up is
+## also aim-up for attacks and dashes, so it only interacts when she's
+## standing still enough to mean it: on the floor, not hurt, dashing or
+## swinging, and not holding attack or dash (up + attack is an up-slash).
+func can_interact() -> bool:
+	if is_dead or not is_on_floor() or hurt_stun_timer > 0.0 or dash_timer > 0.0 or is_dive_attacking:
+		return false
+	if Input.is_action_pressed("attack") or (InputMap.has_action("dash") and Input.is_action_pressed("dash")):
+		return false
+	return not (active_weapon and active_weapon.has_method("is_swinging") and active_weapon.is_swinging())
 
 
 func execute_attack(dir: Vector2 = Vector2.RIGHT):
@@ -532,6 +577,7 @@ func _on_weapon_landed(target: Node, weapon: Node) -> void:
 	if not is_on_floor():
 		air_lift_ready = true
 		air_lunge_ready = true
+		meteor_cancels_left = METEOR_CANCELS_PER_AIRTIME
 		if lunge_timer <= 0.0:
 			velocity.y = minf(velocity.y, AIR_HIT_HOVER)
 
@@ -542,6 +588,9 @@ func _aim_weapon(dir: Vector2) -> void:
 	var angle := 0.0 if dir == Vector2.RIGHT else -PI / 2.0 if dir == Vector2.UP else PI / 2.0
 	weapon_anchor.rotation = angle
 	weapon_anchor.position = weapon_anchor_base.rotated(angle)
+	if dir == Vector2.UP and weapon_data:
+		# Overhead swings turn above her helmet, not at her face (per sword).
+		weapon_anchor.position += weapon_data.up_offset / pivot.scale.abs()
 
 
 ## Bounce back off something hard (armor). `dir` is the push direction.
@@ -570,6 +619,7 @@ func spring(vy: float) -> void:
 	lunge_timer = 0.0
 	air_lift_ready = true
 	air_lunge_ready = true
+	meteor_cancels_left = METEOR_CANCELS_PER_AIRTIME
 	flutter_charges_left = max_flutter_charges
 	wings_updated.emit(flutter_charges_left)
 
@@ -583,14 +633,19 @@ func start_dive_attack():
 	is_jumping = false
 	meteor_windup_timer = METEOR_WINDUP
 	meteor_trail_timer = 0.0
+	meteor_cancel_grace = METEOR_CANCEL_GRACE
 	velocity = Vector2(0, -50) # a little hitch upward sells the windup
 	Sfx.play(&"meteor_windup", -1.0, 0.0, 0.75)
 	_set_dive_attack_hitbox_enabled(false)
+	dive_attack_shape.scale = Vector2.ONE * weapon_data.reach # the sword's reach
 	# Sword flips from overhead to straight down during the windup.
 	meteor_sword.visible = true
 	meteor_sword.position = METEOR_SWORD_UP
 	meteor_sword.rotation = -PI / 2.0 - SWORD_ART_ANGLE
+	if _meteor_tween:
+		_meteor_tween.kill()
 	var tween := meteor_sword.create_tween().set_parallel()
+	_meteor_tween = tween
 	tween.tween_property(meteor_sword, "position", METEOR_SWORD_DOWN, METEOR_WINDUP).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	tween.tween_property(meteor_sword, "rotation", PI / 2.0 - SWORD_ART_ANGLE, METEOR_WINDUP).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
@@ -618,8 +673,73 @@ func _end_meteor() -> void:
 	meteor_windup_timer = 0.0
 	_set_dive_attack_hitbox_enabled(false)
 	Sfx.stop(&"meteor_fall")
+	if _meteor_tween:
+		_meteor_tween.kill()
+		_meteor_tween = null
 	if meteor_sword:
 		meteor_sword.visible = false
+
+
+## Comet strike cancel. A press of dash, attack or jump made after the strike
+## started (and after METEOR_CANCEL_GRACE, so the press that started it, a
+## held button or a bouncy double-tap can't) drops the strike, windup or
+## plunge, and hands control straight back, METEOR_CANCELS_PER_AIRTIME times
+## per airtime (refreshed like the other air moves). One press, one move:
+##   dash   -> a dash in the held direction, only if can_dash() would allow it
+##             (otherwise the press is ignored and she keeps plunging)
+##   attack -> an air swing in the held direction (up = rising slash)
+##   jump   -> a flutter if she has a feather, else a plain fall from a standstill
+## Returns the action that cancelled it, or &"".
+func _meteor_cancel_input(delta: float) -> StringName:
+	meteor_cancel_grace = maxf(0.0, meteor_cancel_grace - delta)
+	if meteor_cancel_grace > 0.0 or meteor_cancels_left <= 0 or hurt_stun_timer > 0.0:
+		return &""
+	# Ignore the press that closed a menu, the same frames _dash_input does.
+	if _dash_resume_block > 0 or (_last_physics_frame >= 0 and Engine.get_physics_frames() - _last_physics_frame > 1):
+		return &""
+	var action := &""
+	if InputMap.has_action("dash") and Input.is_action_just_pressed("dash") and _can_dash_out_of_meteor():
+		action = &"dash"
+	elif Input.is_action_just_pressed("attack"):
+		action = &"attack"
+	elif Input.is_action_just_pressed("jump"):
+		action = &"jump"
+	else:
+		return &""
+	cancel_dive_attack()
+	match action:
+		&"dash":
+			start_dash()
+		&"attack":
+			var held := Input.get_axis("move_left", "move_right")
+			if held != 0.0:
+				pivot.scale.x = signf(held)
+			attack_buffer = 0.0
+			if _can_attack():
+				execute_attack(_attack_direction())
+		&"jump":
+			if flutter_charges_left > 0:
+				start_flutter()
+	return action
+
+
+## Ends the strike with no landing: no shockwave, no landing lag. Her plunge
+## speed is dropped so whatever she cancels into starts from a standstill.
+func cancel_dive_attack() -> void:
+	if not is_dive_attacking:
+		return
+	_end_meteor()
+	Sfx.stop(&"meteor_windup")
+	meteor_cancels_left -= 1
+	velocity.y = minf(velocity.y, 0.0)
+
+
+## can_dash() as if the strike were already over (it refuses mid-strike).
+func _can_dash_out_of_meteor() -> bool:
+	is_dive_attacking = false
+	var ok := can_dash()
+	is_dive_attacking = true
+	return ok
 
 
 func _land_dive_attack():
@@ -668,6 +788,7 @@ func _apply_dive_attack_hit(target: Node) -> void:
 	velocity.y = METEOR_BOUNCE * weapon_data.meteor_power
 	air_lift_ready = true
 	air_lunge_ready = true
+	meteor_cancels_left = METEOR_CANCELS_PER_AIRTIME
 	CombatFX.burst(self, global_position + Vector2(0, 6), 14.0, Color(1, 0.95, 0.75), 1.0, 6, 0.2)
 	CombatFX.shake(self, 2.0, 0.12)
 
@@ -777,6 +898,7 @@ func _die() -> void:
 	if is_dead: return
 	is_dead = true
 	
+	_end_dash(0.0) # DASH STRIKE: puts the brandished sword away
 	# Disable physics
 	velocity = Vector2.ZERO
 	var collider = get_node_or_null("CollisionShape2D")
@@ -865,8 +987,8 @@ func add_flutter_charge(amount: int = 1):
 	flutter_charges_left = min(flutter_charges_left + amount, max_flutter_charges)
 	wings_updated.emit(flutter_charges_left)
 
-## Permanent upgrade (Wings pickup): one more flutter per airtime, on top of
-## the sword's base (up to FLUTTER_CAP).
+## Permanent upgrade (WingFeather find, scripts/wings.gd): one more flutter
+## per airtime, on top of the sword's base (the total stays <= FLUTTER_CAP).
 func add_flutter_slot(amount: int = 1):
 	flutter_bonus += amount
 	Sfx.play(&"power_up")
@@ -1080,6 +1202,9 @@ const DASH_HITBOX_HEIGHT := 14.0
 const DASH_HIT_MASK := 1           # what swords scan: enemy hurtboxes, obstacles
 const DASH_TRAIL_INTERVAL := 0.03
 const DASH_CARRY_Y := 0.33         # share of vertical dash speed kept after
+const DASH_SWORD_HOLD := 4.0       # px from her body centre to the brandished grip
+const DASH_SWORD_THRUST := 3.0     # px the brandish shoots forward as she sets off
+const DASH_SWORD_THRUST_TIME := 0.05
 var dash_timer := 0.0
 var dash_cooldown := 0.0
 var dash_buffer := 0.0
@@ -1091,6 +1216,7 @@ var _dash_hit: Dictionary = {}     # instance ids already struck this dash
 var _dash_trail: DashTrail
 var _dash_ghost_timer := 0.0
 var _dash_shape: RectangleShape2D
+var _dash_sword: Sprite2D          # the equipped sword held out (brandish, no hitbox)
 var _last_physics_frame := -1
 var _dash_resume_block := 0        # physics frames to ignore dash after a resume
 
@@ -1172,6 +1298,7 @@ func start_dash() -> void:
 	_dash_ghost_timer = 0.0
 	var tint: Color = weapon_data.tint.lerp(Color.WHITE, 0.5) if weapon_data else Color.WHITE
 	_dash_trail = DashTrail.spawn(self, _dash_vec, Color(tint, 0.8))
+	_pose_dash_sword()
 	Sfx.play(&"dash", -1.0, 0.0, 1.25)
 
 
@@ -1194,10 +1321,13 @@ func _dash_step(delta: float) -> void:
 	_dash_strike(delta)
 	if dash_timer <= 0.0:
 		return # clinked off armor (recoil ended it)
+	_pose_dash_sword()
 	_dash_ghost_timer -= delta
 	if _dash_ghost_timer <= 0.0:
 		_dash_ghost_timer = DASH_TRAIL_INTERVAL
 		CombatFX.afterimage(animated_sprite, LUNGE_TINT)
+		if _dash_sword.visible:
+			CombatFX.afterimage(_dash_sword, LUNGE_TINT)
 	if dash_timer - delta <= 0.0:
 		# Back to her run speed; steering, gravity and friction take over.
 		_end_dash(_dash_vec.x * BASE_SPEED * weapon_data.top_speed)
@@ -1218,6 +1348,33 @@ func _end_dash(carry_x: float) -> void:
 	if _dash_trail and is_instance_valid(_dash_trail):
 		_dash_trail.stop()
 	_dash_trail = null
+	if _dash_sword:
+		_dash_sword.visible = false
+
+
+## Brandish: the equipped sword's own art and tint held out along the dash
+## from her body, shooting forward a few pixels as she sets off. Looks only:
+## the dash's query (_dash_strike) is its one damage source. Hidden while a
+## swing shows the sword instead.
+func _pose_dash_sword() -> void:
+	if _dash_sword == null:
+		_dash_sword = Sprite2D.new()
+		_dash_sword.name = "DashSword"
+		pivot.add_child(_dash_sword) # after her sprite: drawn over her
+	var weapon := active_weapon
+	if weapon == null or not weapon.has_method("pose_held_art") \
+			or (weapon.has_method("is_swinging") and weapon.is_swinging()):
+		_dash_sword.visible = false
+		return
+	weapon.pose_held_art(_dash_sword)
+	_dash_sword.modulate = weapon_data.tint
+	# Pivot space: mirrored when facing left and scaled, so convert from world.
+	var dir := Vector2(_dash_vec.x * signf(pivot.scale.x), _dash_vec.y)
+	var k := clampf((DASH_TIME - dash_timer) / DASH_SWORD_THRUST_TIME, 0.0, 1.0)
+	var hold := DASH_SWORD_HOLD + DASH_SWORD_THRUST * (ease(k, 0.4) - 1.0)
+	_dash_sword.position = (Vector2(0.0, 1.0) + dir * hold) / pivot.scale.abs()
+	_dash_sword.rotation += dir.angle()
+	_dash_sword.visible = true
 
 
 ## The dash's hitbox: a box from her center to DASH_REACH ahead along the
@@ -1301,3 +1458,86 @@ func _sfx_meteor_impact() -> void:
 		Sfx.play(&"meteor_slam")
 	else:
 		Sfx.play(&"meteor_impact", -1.0, 0.0, 1.0 / maxf(weapon_data.meteor_power, 0.5))
+
+
+# --- STEP-UP ---
+## Walking into a lip no taller than STEP_HEIGHT (a seam between bodies, or a
+## one-way platform tile whose top sits 2px below the solid ground beside it)
+## lifts her onto it with no jump and no lost speed. Her rounded capsule only
+## rides over ~1px by itself. STEP_HEIGHT stays well under half a tile, so every
+## real 16px ledge still needs a jump; and it only works from the floor (or a
+## few frames after walking off it) while not rising, so it never adds height
+## to a jump or a flutter.
+const STEP_HEIGHT := 6.0
+const STEP_COYOTE_FRAMES := 3
+var _step_air_frames := 0
+
+
+## Called right before move_and_slide(): if this frame's run would hit a low
+## lip, raise her by its height so the slide carries her on at full speed.
+func _try_step_up(direction: float, delta: float) -> void:
+	_step_air_frames = 0 if is_on_floor() else _step_air_frames + 1
+	if direction == 0.0 or signf(velocity.x) != signf(direction) or velocity.y < 0.0:
+		return # not pushing forward into it, or rising (jump / flutter)
+	if _step_air_frames > STEP_COYOTE_FRAMES or dash_timer > 0.0 or lunge_timer > 0.0 \
+			or hurt_stun_timer > 0.0 or is_dive_attacking:
+		return
+	var from := global_transform
+	var ahead := Vector2(maxf(absf(velocity.x) * delta, 1.0) * direction, 0.0)
+	var wall := _step_test(from, ahead)
+	if wall == null or wall.get_collision_normal().x * direction > -0.3 \
+			or absf(wall.get_collision_normal().angle_to(up_direction)) <= floor_max_angle:
+		return # nothing ahead, or a slope she walks up anyway
+	# How far up she can go without hitting a ceiling.
+	var rise := _step_test(from, Vector2(0.0, -STEP_HEIGHT))
+	var headroom := STEP_HEIGHT if rise == null else -rise.get_travel().y
+	if headroom < 0.5:
+		return
+	# Probe at least one foot-radius ahead, so her flat bottom (not the round
+	# of the capsule grazing the corner) is what lands on the lip's top.
+	var probe := ahead.normalized() * maxf(absf(ahead.x), _step_foot_radius())
+	var raised := from.translated(Vector2(0.0, -headroom))
+	if _step_test(raised, probe) != null:
+		return # still blocked up there: a real wall or ledge
+	# Drop back down past the lip to find its top.
+	var over := raised.translated(probe)
+	var land := _step_test(over, Vector2(0.0, headroom))
+	if land == null or absf(land.get_collision_normal().angle_to(up_direction)) > floor_max_angle:
+		return
+	var step := headroom - land.get_travel().y
+	if step <= 0.0 or _step_hazard_at(over.origin + land.get_travel()):
+		return
+	# A hair over the lip, and shifted so this frame's slide ends right where
+	# the probe landed (fully on top, not snapped back onto the corner).
+	global_position += Vector2(probe.x - ahead.x, -minf(step + 0.25, headroom))
+
+
+## Radius of the round bottom of her collider (1 px for a box).
+func _step_foot_radius() -> float:
+	var shape_node := get_node_or_null(^"CollisionShape2D") as CollisionShape2D
+	if shape_node and shape_node.shape is CapsuleShape2D:
+		return (shape_node.shape as CapsuleShape2D).radius
+	return 1.0
+
+
+## Motion test of her body from `from` along `motion`; null if it's free.
+func _step_test(from: Transform2D, motion: Vector2) -> PhysicsTestMotionResult2D:
+	var params := PhysicsTestMotionParameters2D.new()
+	params.from = from
+	params.motion = motion
+	params.margin = safe_margin
+	var result := PhysicsTestMotionResult2D.new()
+	return result if PhysicsServer2D.body_test_motion(get_rid(), params, result) else null
+
+
+## True if her hazard sensor would touch lava / poison standing at `pos`.
+func _step_hazard_at(pos: Vector2) -> bool:
+	if hazard_sensor == null:
+		return false
+	var shape_node := hazard_sensor.get_child(0) as CollisionShape2D
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = shape_node.shape
+	query.transform = Transform2D(0.0, pos + shape_node.position)
+	query.collision_mask = HAZARD_LAYER
+	query.collide_with_areas = true
+	return not get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty()

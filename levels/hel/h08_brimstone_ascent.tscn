@@ -17,7 +17,7 @@
 [node name="HelH08" type="Node2D" node_paths=PackedStringArray("ground", "generator")]
 script = ExtResource("1_level")
 level_id = "hel_h08"
-display_name = "Brimstone Ascent"
+display_name = "Brimstone Depths"
 realm = "hel"
 default_spawn = "south"
 place_shrine = false
@@ -68,7 +68,7 @@ entities_root = NodePath("../Entities")
 
 [node name="ExitSouth" type="Area2D" parent="."]
 script = ExtResource("5_exit")
-target_level = "hel_h04"
+target_level = "hel_02"
 target_spawn = "north"
 anchor = "south"
 
@@ -80,6 +80,6 @@ anchor = "east"
 
 [node name="ExitNorth" type="Area2D" parent="."]
 script = ExtResource("5_exit")
-target_level = "hel_h10"
+target_level = "hel_h02"
 target_spawn = "south"
 anchor = "north"

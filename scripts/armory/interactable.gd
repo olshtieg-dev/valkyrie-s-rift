@@ -1,6 +1,8 @@
 class_name Interactable
 extends Area2D
-## Base for things she uses with the interact button (W / Up / E / D-pad up):
+## Base for things she uses by pressing up (`interact`: W / Up / E, D-pad up or
+## left stick up; only when the player's can_interact() agrees, so up-slashes
+## and up-dashes beside one don't trigger it):
 ## shrines and sword pedestals. Shows a small prompt while she's in range,
 ## and settles onto the floor below it on the first physics frame (tile
 ## collision doesn't exist yet in _ready), so it can be placed loosely.
@@ -55,7 +57,8 @@ func _physics_process(_delta: float) -> void:
 		_settled = true
 		if snap_to_floor:
 			_snap_down()
-	if _player and not _player.get("is_dead") and Input.is_action_just_pressed("interact"):
+	if _player and not _player.get("is_dead") and Input.is_action_just_pressed("interact") \
+			and (not _player.has_method("can_interact") or _player.call("can_interact")):
 		_interact(_player)
 		_refresh_prompt()
 

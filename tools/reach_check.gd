@@ -82,7 +82,11 @@ func _run() -> void:
 		for node in level.get_children():
 			if String(node.name).begins_with("SideRouteFind"):
 				var what := "heart"
-				if node.get("weapon"):
+				if node.get_script().resource_path.ends_with("/wings.gd"):
+					what = "wings"
+				elif node.get("ability"):
+					what = String(node.ability)
+				elif node.get("weapon"):
 					what = node.weapon.display_name
 				elif node.get("armor"):
 					what = node.armor.display_name

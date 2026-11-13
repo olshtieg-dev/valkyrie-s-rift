@@ -85,6 +85,6 @@ anchor = "east"
 
 [node name="ExitNorth" type="Area2D" parent="."]
 script = ExtResource("5_exit")
-target_level = "hel_h08"
+target_level = "hel_h10"
 target_spawn = "south"
 anchor = "north"

@@ -67,6 +67,7 @@ func _on_body_entered(body: Node2D) -> void:
 	_taken = true
 	body.add_heart_container(1)
 	GameManager.pedestal_contents[_key()] = ""
+	GameManager.commit_player_state(body) # a death reload keeps the heart
 	CombatFX.burst(self, global_position + Vector2(0, -FLOAT), 18.0, GOLD, 1.0, 10, 0.4)
 	var level := LevelManager.current_level
 	if level and level.get("hud") and level.hud.has_method("show_title"):

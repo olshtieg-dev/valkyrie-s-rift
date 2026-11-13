@@ -83,6 +83,7 @@ func _interact(who: Node2D) -> void:
 		who.set_armor(suit)
 		armor = null
 		GameManager.pedestal_contents[_key()] = ""
+		GameManager.commit_player_state(who) # a death reload keeps it on
 		CombatFX.burst(self, global_position + Vector2(0, -24), 16.0, Color(1, 0.95, 0.7), 1.0, 8, 0.35)
 		if found:
 			_announce("Found: %s" % suit.display_name)
@@ -94,6 +95,7 @@ func _interact(who: Node2D) -> void:
 	var taken := weapon
 	weapon = who.take_weapon(taken)
 	GameManager.pedestal_contents[_key()] = weapon.resource_path if weapon else ""
+	GameManager.commit_player_state(who) # loadout matches the pedestal after a death reload
 	CombatFX.burst(self, global_position + Vector2(0, -30), 16.0, Color(1, 0.95, 0.7), 1.0, 8, 0.35)
 	if first_find:
 		_announce("Found: %s" % taken.display_name)

@@ -19,6 +19,19 @@ const LIFETIME := 10.0
 const BLINK_AT := 7.0
 const PICKUP_DELAY := 0.25 # let it pop out before it can be grabbed
 const HEART_HEAL := 2
+## Grab radius of dropped hearts/coins (was 7). Her body is only 8x12 and she
+## moves fast, so the reach is generous: 12 + her 4 px half-width = 16 px, one
+## tile from her center to the drop.
+const COLLECT_RADIUS := 12.0
+## Grab radius of coins placed in levels (coin.tscn; its capsule was 4x5).
+## 8 covers the whole 16 px coin sprite.
+const COIN_COLLECT_RADIUS := 8.0
+## Her collision capsule (radius 4, height 12) as the swept check sees it,
+## used if her shape can't be read: half-width, and half the straight spine.
+const PLAYER_HALF_WIDTH := 4.0
+const PLAYER_HALF_SPINE := 2.0
+## Longest one-frame move swept (her fastest, the meteor, is ~9.3 px a frame).
+const MAX_SWEEP := 24.0
 ## Coin combo: grabs within COMBO_WINDOW seconds of the last climb these
 ## semitones (a major pentatonic run), so a spill rings out instead of clattering.
 const COIN_COMBO_STEPS: Array[int] = [0, 2, 4, 7, 9, 12]
@@ -35,6 +48,8 @@ var _landed := false
 var _age := 0.0
 var _sway := 0.0
 var _sprite: Sprite2D
+var _collected := false
+var _player_prev := Vector2.INF
 
 
 ## Plays the coin sound, pitched up one step per coin grabbed in quick
@@ -48,6 +63,56 @@ static func play_coin_sound() -> void:
 	if Sfx.play(&"coin", -1.0, 0.0, pow(2.0, semitones / 12.0)):
 		_coin_combo += 1
 		_coin_combo_time = now
+
+
+## Gives `area` a fresh circular collection shape of `radius` (replacing any
+## shape it had, so scene sub-resources are never mutated).
+static func set_collect_radius(area: Area2D, radius: float) -> void:
+	var circle := CircleShape2D.new()
+	circle.radius = radius
+	var shape: CollisionShape2D = null
+	for child in area.get_children():
+		if child is CollisionShape2D:
+			shape = child
+			break
+	if shape == null:
+		shape = CollisionShape2D.new()
+		area.add_child(shape)
+	shape.shape = circle
+
+
+## Swept backup for body_entered: at dash/meteor speed (500-560 px/s, ~9 px a
+## frame) she can graze past the edge of a pickup between two physics frames.
+## Call once per physics frame with her body center from the last call
+## (`prev`, Vector2.INF at first). Returns {"player": the player if her path
+## since then came within `radius` + her half-width of `area`, else null;
+## "prev": her body center now, to pass next frame}. Jumps longer than
+## MAX_SWEEP (respawns, level loads) are not swept.
+static func swept_player(area: Area2D, radius: float, prev: Vector2) -> Dictionary:
+	var player := area.get_tree().get_first_node_in_group("player") as Node2D
+	if player == null:
+		return {"player": null, "prev": Vector2.INF}
+	var body_shape := player.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if body_shape and body_shape.disabled:
+		return {"player": null, "prev": Vector2.INF}
+	var now := body_shape.global_position if body_shape else player.global_position
+	var from := now if prev == Vector2.INF or prev.distance_to(now) > MAX_SWEEP else prev
+	var half_width := PLAYER_HALF_WIDTH
+	var half_spine := PLAYER_HALF_SPINE
+	if body_shape and body_shape.shape is CapsuleShape2D:
+		var cap := body_shape.shape as CapsuleShape2D
+		half_width = cap.radius
+		half_spine = maxf(cap.height * 0.5 - cap.radius, 0.0)
+	# Sweep the top, middle and bottom of her upright capsule spine.
+	var at := area.global_position
+	var hit := false
+	for off: float in [-half_spine, 0.0, half_spine]:
+		var o := Vector2(0.0, off)
+		var closest := Geometry2D.get_closest_point_to_segment(at, from + o, now + o)
+		if closest.distance_to(at) <= radius + half_width:
+			hit = true
+			break
+	return {"player": player if hit else null, "prev": now}
 
 
 ## Drops a pickup at `at`, popping out in a small arc.
@@ -69,11 +134,7 @@ func _ready() -> void:
 	collision_layer = 0
 	collision_mask = PLAYER_LAYER
 	monitoring = false # switched on after PICKUP_DELAY; catches a player already standing here
-	var shape := CollisionShape2D.new()
-	var circle := CircleShape2D.new()
-	circle.radius = 7.0
-	shape.shape = circle
-	add_child(shape)
+	Pickup.set_collect_radius(self, COLLECT_RADIUS)
 	_sprite = Sprite2D.new()
 	_sprite.texture = SHEET
 	_sprite.region_enabled = true
@@ -91,6 +152,12 @@ func _physics_process(delta: float) -> void:
 		_sprite.visible = fmod(_age, 0.2) < 0.12
 	if _age > PICKUP_DELAY and not monitoring:
 		set_deferred("monitoring", true)
+	if _age > PICKUP_DELAY:
+		var sweep := Pickup.swept_player(self, COLLECT_RADIUS, _player_prev)
+		_player_prev = sweep["prev"]
+		if sweep["player"]:
+			_on_body_entered(sweep["player"])
+			return
 	if _landed:
 		return
 	if kind == Kind.HEART and _velocity.y > 0.0:
@@ -114,8 +181,9 @@ func _physics_process(delta: float) -> void:
 
 
 func _on_body_entered(body: Node2D) -> void:
-	if _age < PICKUP_DELAY or not body.is_in_group("player"):
+	if _collected or _age < PICKUP_DELAY or not body.is_in_group("player"):
 		return
+	_collected = true
 	match kind:
 		Kind.HEART:
 			if body.has_method("_heal"):

@@ -91,3 +91,19 @@ func store_player_state(player: Node) -> void:
 		"weapon_slot": player.active_slot,
 		"abilities": player_state.get("abilities", []),
 	}
+
+
+## Commits a permanent pickup (pedestal sword or armor, heart container) the
+## moment she takes it, so a death reload can't take it back while the map
+## already remembers it as taken (pedestal_contents). Saves everything
+## store_player_state does except her current health: the health she
+## entered the room with (or none, after a death, = full) is kept, so a
+## pickup never locks in damage taken before it.
+func commit_player_state(player: Node) -> void:
+	var had_health := player_state.has("health")
+	var health = player_state.get("health")
+	store_player_state(player)
+	if had_health:
+		player_state["health"] = health
+	else:
+		player_state.erase("health")

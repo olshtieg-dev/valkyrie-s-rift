@@ -55,6 +55,6 @@ entities_root = NodePath("../Entities")
 
 [node name="ExitNorth" type="Area2D" parent="."]
 script = ExtResource("5_exit")
-target_level = "hel_h02"
+target_level = "hel_02"
 target_spawn = "south"
 anchor = "north"
