@@ -17,6 +17,9 @@ var heavy: bool = false
 var knockback: Vector2 = Vector2.ZERO
 ## Who dealt it (the player, an enemy, a projectile), when known.
 var source: Node
+## Dealt from afar (a Magigonne shot): targets that bounce her off a blow
+## (vine walls, slime boulders) must not shove her from across the room.
+var ranged: bool = false
 
 
 static func make(p_damage: int, p_knockback: Vector2 = Vector2.ZERO,

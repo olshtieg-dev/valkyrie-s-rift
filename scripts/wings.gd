@@ -1,8 +1,10 @@
 class_name WingFeather
 extends Area2D
-## Wing feather: a side-route find ("wings" in the level registry) that gives
-## one more flutter per airtime for good (Player.add_flutter_slot, up to
-## Player.FLUTTER_CAP). The HUD's feather, drawn in code at whole world
+## Wing feather: a side-route find ("wings" in the level registry), or one of
+## the two on the main path that mend her broken wings ("path_find"). Each is
+## one more feather for good (Player.add_flutter_slot): the first two give
+## her the sword's own flutters, every later one +1 flutter per airtime (up
+## to Player.FLUTTER_CAP). The HUD's feather, drawn in code at whole world
 ## pixels, hovers in a pale sky-blue glow; touch to take it. Taken feathers
 ## stay taken across reloads (keyed like heart vessels: level scene file +
 ## node name, in GameManager.pedestal_contents), and the upgrade is saved at
@@ -105,12 +107,25 @@ func _on_body_entered(body: Node2D) -> void:
 	CombatFX.burst(self, global_position + Vector2(0, -FLOAT), 18.0, GLOW, 1.0, 10, 0.4)
 	var level := LevelManager.current_level
 	if level and level.get("hud") and level.hud.has_method("show_title"):
-		level.hud.show_title("Wing Feather: +1 flutter")
+		level.hud.show_title(_title_for(body))
 	set_deferred("monitoring", false)
 	var tween := create_tween()
 	tween.tween_property(self, "_rise", 10.0, 0.4)
 	tween.parallel().tween_property(self, "modulate:a", 0.0, 0.4)
 	tween.tween_callback(queue_free)
+
+
+## Her wings start broken (Player.WINGS_FEATHERS): the first feathers mend
+## them rather than adding a flutter.
+func _title_for(player: Variant) -> String:
+	var found: int = player.flutter_bonus
+	var needed: int = player.WINGS_FEATHERS
+	if found < needed:
+		var left := needed - found
+		return "Wing Feather: %d more and her wings will hold" % left
+	if found == needed:
+		return "Her wings hold again: jump in the air to flutter"
+	return "Wing Feather: +1 flutter"
 
 
 func _key() -> String:

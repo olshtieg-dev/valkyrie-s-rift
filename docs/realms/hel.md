@@ -77,6 +77,22 @@ H05 is a short side hallway off the hub, so the dash detour is two rooms deep
 
 ## Progression (what unlocks what)
 
+**The unarmed opening.** She starts the climb with no sword and broken wings
+(no flutter at all). H01 "Where She Fell" is pure platforming, and her only
+attack is the power stomp (down + attack in the air). The main path then
+hands her back what she fell with, each beside the room's entrance spawn
+(registry `path_find`), so it can't be missed:
+
+| Room | On the main path | Effect |
+|---|---|---|
+| hel_02 Brimstone Ascent | **Valkyrie Blade** (pedestal) | Sword swings; she still can't flutter |
+| H08 Brimstone Depths | **Two wing feathers** | Her wings hold: the sword's own flutters (the blade's 2) |
+
+Both rooms are climbable with no flutter. Feathers are counted together: the
+first two found mend her wings and every one after is +1 flutter, so hel_02's
+side-route feather, if taken first, is one of those two. The six side-route
+feathers (Hel 3, Yggdrasil 2, Sky 1) take the blade's 2 to the cap of 8.
+
 | Order | Get | Where | Opens |
 |---|---|---|---|
 | 1 | **Ice Rapier** | H03, an easy first detour | Freezes slime boulders. Freeze, then meteor-strike to shatter: H04 → H07 |
@@ -97,20 +113,20 @@ An exit's `target_spawn` is the anchor name of the side you arrive on.
 
 | Room | Type / style | Size | Exits → target (spawn) | Contents |
 |---|---|---|---|---|
-| **H01** Where She Fell | Start · CAVERN | 40×30 | north → hel_02 (south) | Landing spot, no enemies. A safe place to learn jump and flutter. The game's main scene. |
-| **H08** Brimstone Depths | Ascent · CAVERN | 64×100 | south → hel_02 (north) · east → H09 (west) `[dash]` · north → H02 (south) | Lava, draugr on wide ledges, chargers. The second ascent. |
-| **H09** Ember Forge | Treasure · CAVERN | 40×28 | west → H08 (east) | **Flame Greatsword** on a pedestal in an old forge. |
-| **hel_02** Brimstone Ascent | Ascent · CAVERN | 64×100 | south → H01 (north) · north → H08 (south) | The original Brimstone Ascent test level, kept in the run as built. The first ascent; side route holds a Wing Feather. |
-| **H02** The Pit | Shaft · CLIMB | 48×130 | south → H08 (north) · east → H03 (west) · north → H04 (south) | Crawlers, droppers, a flyer guarding the shaft. Teaches the climb. |
-| **H03** Frozen Hollow | Side · CAVERN | 36×24 | west → H02 (east) | **Ice Rapier** pedestal. Cold blue pocket in the brimstone. A slime boulder to practise on. |
-| **H04** Ember Hub | Hub · CAVERN | 90×60 | south → H02 (north) · west → H05 (east) · east → H07 (west) `[slime]` · north → H10 (south) | First shrine (save, barter). Wide, warm, layered ledges. |
-| **H05** Cinder Hall | Hallway · SURFACE | 70×20 | east → H04 (west) · west → H06 (east) | Cinder mite swarms, lava pools in the floor. |
-| **H06** Ash Chimney | Side shaft · SHAFT | 24×90 | east (at the bottom) → H05 (west) | Hard flutter climb to an **Ability Shrine: dash** at the top. The hardest platforming in Hel. |
-| **H07** Sealed Cache | Treasure · CAVERN (small) | 30×24 | west → H04 (east) | **Ember Mail**. Coins. One spitter. |
-| **H10** Draugr Hall | Hall · CAVERN (low, wide) | 80×30 | south → H04 (north) · east → H11 (west) | A gauntlet: draugr and cinder mites. Heart container. |
-| **H11** Móðguðr's Rest | Rest · CAVERN (small) | 36×24 | west → H10 (east) · north → H12 (south) | Second shrine. **NPC: Móðguðr**, the giantess who guards the road of the dead, surprised to see someone climbing out. She warns about Garmr. No enemies. |
-| **H12** Garmr's Den | Boss · ARENA | 60×24 | south → H11 (north) · north → H13 (south), locked until the boss falls | **Boss: Garmr**, the hound chained at Hel's gate. Three draugr stand in until Garmr exists. |
-| **H13** Hel's Breach | Exit · SHAFT | 24×60 | south → H12 (north) · north → **ygg_01** (south) | A short, quiet climb into the first roots. Light changes from ember to green. |
+| **H01** Where She Fell | Start · CAVERN | 48×48 | north → hel_02 (south) | Landing spot, no enemies. A safe place to learn jump and flutter. The game's main scene. |
+| **H08** Brimstone Depths | Ascent · CAVERN | 80×150 | south → hel_02 (north) · east → H09 (west) `[dash]` · north → H02 (south) | Lava, draugr on wide ledges, chargers. The second ascent. |
+| **H09** Ember Forge | Treasure · CAVERN | 52×36 | west → H08 (east) | **Flame Greatsword** on a pedestal in an old forge. |
+| **hel_02** Brimstone Ascent | Ascent · CAVERN | 80×140 | south → H01 (north) · north → H08 (south) | The original Brimstone Ascent test level, kept in the run as built. The first ascent; side route holds a Wing Feather. |
+| **H02** The Pit | Shaft · CLIMB | 56×200 | south → H08 (north) · east → H03 (west) · north → H04 (south) | Crawlers, droppers, a flyer guarding the shaft. Teaches the climb. |
+| **H03** Frozen Hollow | Side · CAVERN | 50×34 | west → H02 (east) | **Ice Rapier** pedestal. Cold blue pocket in the brimstone. A slime boulder to practise on. |
+| **H04** Ember Hub | Hub · CAVERN | 110×80 | south → H02 (north) · west → H05 (east) · east → H07 (west) `[slime]` · north → H10 (south) | First shrine (save, barter). Wide, warm, layered ledges. |
+| **H05** Cinder Hall | Hallway · SURFACE | 120×24 | east → H04 (west) · west → H06 (east) | Cinder mite swarms, lava pools in the floor. |
+| **H06** Ash Chimney | Side shaft · SHAFT | 28×150 | east (at the bottom) → H05 (west) | Hard flutter climb to an **Ability Shrine: dash** at the top. The hardest platforming in Hel. |
+| **H07** Sealed Cache | Treasure · CAVERN (small) | 44×32 | west → H04 (east) | **Ember Mail**. Coins. One spitter. |
+| **H10** Draugr Hall | Hall · CAVERN (low, wide) | 130×36 | south → H04 (north) · east → H11 (west) | A gauntlet: draugr and cinder mites. Heart container. |
+| **H11** Móðguðr's Rest | Rest · CAVERN (small) | 48×32 | west → H10 (east) · north → H12 (south) | Second shrine. **NPC: Móðguðr**, the giantess who guards the road of the dead, surprised to see someone climbing out. She warns about Garmr. No enemies. |
+| **H12** Garmr's Den | Boss · ARENA | 72×28 | south → H11 (north) · north → H13 (south), locked until the boss falls | **Boss: Garmr**, the hound chained at Hel's gate. Three draugr stand in until Garmr exists. |
+| **H13** Hel's Breach | Exit · SHAFT | 28×100 | south → H12 (north) · north → **ygg_01** (south) | A short, quiet climb into the first roots. Light changes from ember to green. |
 
 14 rooms: 9 on the main path, plus 5 detours.
 

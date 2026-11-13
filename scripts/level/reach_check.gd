@@ -28,6 +28,11 @@ extends RefCounted
 ## plain jump+flutter(+dash) player can get there; if it says no, a skilled
 ## player may still manage it.
 ##
+## Unarmed mode (ReachCheck.unarmed): her bare-handed movement
+## (WeaponData.unarmed(), the blade's) with no flutter at all, as at the start
+## of the climb before her wings are mended. Every result is then 0
+## (reachable without a flutter) or -1.
+##
 ## Usage:
 ##   var check := ReachCheck.new(level.generator, weapon_data, 10, has_dash)
 ##   var result := check.run(start_feet, {"north": rect}, {"find": feet_pos})
@@ -118,6 +123,11 @@ func _init(generator: LevelGenerator, weapon: WeaponData = null, flutter_limit: 
 		_momentum_gain = weapon.momentum_gain
 		_flutter_height = weapon.flutter_height
 	_read_grid(generator)
+
+
+## The unarmed, wingless check: bare-handed movement, 0 flutters, no dash.
+static func unarmed(generator: LevelGenerator) -> ReachCheck:
+	return ReachCheck.new(generator, WeaponData.unarmed(), 0, false)
 
 
 ## start: feet position (level-local) she enters at.

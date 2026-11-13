@@ -112,6 +112,10 @@ const SOURCE_ID := 0
 ## Pick a detour spot for the level's side-route find (see `find_spot`).
 ## The level turns this on when its registry entry has a "find".
 @export var reserve_find_spot: bool = false
+## Rooms without side rooms (CAVERN, SHAFT, ...): put the find on the highest
+## floor in the room instead of off to the side mid-climb, so the whole climb
+## is the detour (e.g. Ash Chimney's dash shrine at the top of the chimney).
+@export var find_at_top: bool = false
 
 enum Gate { NONE, VINE, SLIME }
 
@@ -125,6 +129,26 @@ var find_count := 1
 ## After generation: one feet position per find, best detour first.
 var find_spots: Array[Vector2] = []
 var _find_rooms: Array[int] = []
+
+@export_group("Secrets")
+## Hidden pockets carved into solid rock beside a floor, sealed either by a
+## false wall (she walks through; it fades while she's inside) or a cracked
+## wall (any sword blow breaks it). Each holds coins, or a find the level
+## registry asks for ("secret_find"). Secrets are added last with their own
+## RNG, so turning them on doesn't change the rest of the room's layout,
+## mobs or pickups. The registry can set these per level ("secrets").
+@export_range(0, 8) var secret_count: int = 0
+@export var secret_style: SecretStyle = SecretStyle.MIXED
+## Coins left in each pocket that doesn't hold a find.
+@export_range(0, 10) var secret_coins: int = 3
+
+enum SecretStyle { MIXED, FALSE_WALL, CRACKED }
+
+## After generation: feet position (level-local px) at the back of each secret
+## pocket, in placement order. The first `secret_find_count` hold the level's
+## secret finds (placed by the Level); the rest hold coins.
+var secret_spots: Array[Vector2] = []
+var secret_find_count := 0
 
 @export_group("Nodes")
 @export var ground_layer: TileMapLayer
@@ -241,6 +265,7 @@ func generate() -> void:
 		_pick_find_cell()
 	_paint()
 	_populate()
+	_add_secrets()
 	if Engine.is_editor_hint():
 		_snap_exits_in_editor()
 
@@ -1139,13 +1164,15 @@ func _pick_find_room() -> void:
 ## No side rooms (CAVERN, SHAFT): the floor spot farthest off the straight
 ## line between the bottom and top openings, in the middle of the climb.
 ## Also fills in any finds the side rooms had no room for, each well apart.
+## With `find_at_top`, the highest floor in the room wins instead.
 func _pick_find_cell() -> void:
 	var south := _south_col if _south_col >= 0 else width / 2
 	var north := _north_col if _north_col >= 0 else width / 2
+	var rows := range(2, height - 2) if find_at_top else range(int(height * 0.3), int(height * 0.8))
 	while find_spots.size() < maxi(find_count, 1):
-		var best := -1.0
+		var best := -INF
 		var spot := Vector2.INF
-		for y in range(int(height * 0.3), int(height * 0.8)):
+		for y: int in rows:
 			var line_x := lerpf(north, south, float(y) / height)
 			for x in range(3, width - 3):
 				if _cell(x, y) != AIR or _cell(x, y - 1) != AIR or _cell(x, y - 2) != AIR or _is_protected(x, y):
@@ -1156,6 +1183,8 @@ func _pick_find_cell() -> void:
 				if find_spots.any(func(f: Vector2) -> bool: return f.distance_to(here) < 12.0 * TILE):
 					continue
 				var reach := absf(x - line_x)
+				if find_at_top:
+					reach -= y * 1000.0 # higher rows first, then farthest off the line
 				if reach > best:
 					best = reach
 					spot = here
@@ -1231,6 +1260,232 @@ func _populate_gates(root: Node) -> void:
 			node.owner = get_tree().edited_scene_root
 
 
+# --------------------------------------------------------------------------
+# Secrets
+# --------------------------------------------------------------------------
+
+## Carves `secret_count` hidden pockets into solid rock, with a one-tile
+## shell of real rock left around each. Two shapes, alternating when both fit:
+##   wall  - opens sideways off a floor: 3 tiles tall, 3-6 deep (fits caverns,
+##           halls and chimney walls).
+##   floor - a 3-tall pit under 3-5 tiles of floor (fits hallways and any thick
+##           ground). Its lid is the floor she walks on.
+## The pocket is covered by a FalseWall (fake rock that fades while she's
+## inside). A false seal is walked or dropped through; a cracked seal is a
+## CrackedWall plug: a sword blow breaks a wall plug, a stomp (down + attack in
+## the air, which she has even unarmed) breaks a floor lid. Runs after
+## _paint/_populate on the painted tiles, with its own RNG, so the rest of the
+## room is untouched.
+func _add_secrets() -> void:
+	secret_spots.clear()
+	if secret_count <= 0 or not ground_layer:
+		return
+	var srng := RandomNumberGenerator.new()
+	srng.seed = hash("secrets:%d" % level_seed)
+	var root: Node = entities_root if entities_root else self
+	var keep_clear: Array[Vector2i] = []
+	for a: Dictionary in anchors.values():
+		var spawn: Vector2 = a["spawn"]
+		keep_clear.append(Vector2i(int(spawn.x) / TILE, int(spawn.y) / TILE))
+	for f in find_spots:
+		keep_clear.append(Vector2i(int(f.x) / TILE, int(f.y) / TILE))
+	var occupied: Array[Vector2i] = []
+	for n in root.get_children():
+		if n is Node2D:
+			occupied.append(Vector2i(int((n as Node2D).position.x) / TILE, int((n as Node2D).position.y) / TILE))
+
+	# Floor cells she can stand on: [x, y (her feet's air cell), dir], dir -1 /
+	# 1 = wall face to the west / east (wall pocket), 0 = floor pocket below.
+	var walls: Array = []
+	var floors: Array = []
+	for y in range(4, height - 2):
+		for x in range(3, width - 3):
+			if _cell(x, y) != AIR or _cell(x, y - 1) != AIR or _cell(x, y - 2) != AIR or _cell(x, y + 1) != SOLID:
+				continue
+			floors.append([x, y, 0])
+			for dir: int in [-1, 1]:
+				if _cell(x + dir, y) == SOLID and _cell(x + dir, y - 1) == SOLID and _cell(x + dir, y - 2) == SOLID:
+					walls.append([x, y, dir])
+	_shuffle_with(walls, srng)
+	_shuffle_with(floors, srng)
+
+	var placed: Array[Vector2i] = []
+	var want_wall := true
+	while placed.size() < secret_count:
+		var plan := _next_secret_plan(walls if want_wall else floors, srng, keep_clear, placed, occupied)
+		if plan.is_empty():
+			plan = _next_secret_plan(floors if want_wall else walls, srng, keep_clear, placed, occupied)
+		if plan.is_empty():
+			break
+		var cracked := secret_style == SecretStyle.CRACKED \
+				or (secret_style == SecretStyle.MIXED and srng.randf() < 0.5)
+		_carve_secret(root, plan, cracked, placed.size())
+		placed.append(plan["at"])
+		want_wall = not want_wall
+
+
+## Pops candidates until one fits; returns its plan (see _wall_plan /
+## _floor_plan), or {} when the list runs dry.
+func _next_secret_plan(cands: Array, srng: RandomNumberGenerator, keep_clear: Array[Vector2i],
+		placed: Array[Vector2i], occupied: Array[Vector2i]) -> Dictionary:
+	while not cands.is_empty():
+		var cand: Array = cands.pop_back()
+		var at := Vector2i(cand[0], cand[1])
+		if _too_close(at, keep_clear, 8) or _too_close(at, placed, 14):
+			continue
+		var plan := {}
+		if cand[2] != 0:
+			for depth in range(srng.randi_range(3, 6), 2, -1):
+				plan = _wall_plan(at.x, at.y, cand[2], depth)
+				if not plan.is_empty():
+					break
+		else:
+			for w in range(srng.randi_range(3, 5), 2, -1):
+				plan = _floor_plan(at.x - w / 2, at.y, w)
+				if not plan.is_empty():
+					break
+		if plan.is_empty():
+			continue
+		var area: Rect2i = plan["area"]
+		if occupied.any(func(c: Vector2i) -> bool: return area.has_point(c)):
+			continue
+		plan["at"] = at
+		return plan
+	return {}
+
+
+## A wall pocket beside her feet cell (x, y): columns 1..depth toward `dir`,
+## rows y-2..y. Needs rows y-3..y+1 and column depth+1 to be solid,
+## unprotected rock inside the room's border. {} if it doesn't fit.
+func _wall_plan(x: int, y: int, dir: int, depth: int) -> Dictionary:
+	for i in range(1, depth + 2):
+		var cx := x + dir * i
+		if i <= depth and (cx < 2 or cx > width - 3):
+			return {}
+		for r in range(y - 3, y + 2):
+			if r < 1 or _cell(cx, r) != SOLID or _is_protected(cx, r):
+				return {}
+	var carve: Array[Vector2i] = []
+	var floor_cells: Array[Vector2i] = []
+	var coins: Array[Vector2i] = []
+	for i in range(1, depth + 1):
+		var cx := x + dir * i
+		for r in range(y - 2, y + 1):
+			carve.append(Vector2i(cx, r))
+		floor_cells.append(Vector2i(cx, y + 1))
+	for i in range(depth, 1, -1):
+		coins.append(Vector2i(x + dir * i, y - 1))
+	var near := mini(x, x + dir * (depth + 1)) # the wall face too: wall crawlers sit there
+	return {
+		"carve": carve,
+		"plug": Rect2i(x + dir, y - 2, 1, 3),
+		"floor": floor_cells,
+		"coins": coins,
+		"back": Vector2((x + dir * depth) * TILE + TILE / 2.0, (y + 1) * TILE),
+		"area": Rect2i(near, y - 3, depth + 2, 5),
+	}
+
+
+## A floor pocket under columns x0..x0+w-1, where she stands on row y+1 (the
+## lid) and the pit is rows y+2..y+4. Needs the lid to be walkable floor and
+## rows y+1..y+5, columns x0-1..x0+w to be solid, unprotected rock. {} if not.
+func _floor_plan(x0: int, y: int, w: int) -> Dictionary:
+	if x0 - 1 < 1 or x0 + w > width - 2 or y + 4 > height - 3:
+		return {}
+	for cx in range(x0, x0 + w):
+		if _cell(cx, y) != AIR or _cell(cx, y - 1) != AIR or _is_protected(cx, y):
+			return {}
+	for cx in range(x0 - 1, x0 + w + 1):
+		for r in range(y + 1, y + 6):
+			if _cell(cx, r) != SOLID or _is_protected(cx, r):
+				return {}
+	var carve: Array[Vector2i] = []
+	var floor_cells: Array[Vector2i] = []
+	var coins: Array[Vector2i] = []
+	for cx in range(x0, x0 + w):
+		for r in range(y + 1, y + 5):
+			carve.append(Vector2i(cx, r))
+		floor_cells.append(Vector2i(cx, y + 5))
+		coins.append(Vector2i(cx, y + 3))
+	return {
+		"carve": carve,
+		"plug": Rect2i(x0, y + 1, w, 1),
+		"floor": floor_cells,
+		"coins": coins,
+		"back": Vector2((x0 + w / 2) * TILE + TILE / 2.0, (y + 5) * TILE),
+		"area": Rect2i(x0 - 1, y - 2, w + 2, 8),
+	}
+
+
+func _carve_secret(root: Node, plan: Dictionary, cracked: bool, index: int) -> void:
+	var plug: Rect2i = plan["plug"]
+	var cover_cells: Array[Vector2i] = []
+	var cover_tiles: Array[Vector2i] = []
+	var plug_tiles: Array[Vector2i] = []
+	plug_tiles.resize(plug.size.x * plug.size.y)
+	for c: Vector2i in plan["carve"]:
+		var atlas := ground_layer.get_cell_atlas_coords(c)
+		if cracked and plug.has_point(c):
+			var k := (c.y - plug.position.y) * plug.size.x + (c.x - plug.position.x)
+			plug_tiles[k] = atlas
+		else:
+			cover_cells.append(c)
+			cover_tiles.append(atlas)
+		_put(c.x, c.y, AIR)
+		_protected[c.y * width + c.x] = 1
+		ground_layer.erase_cell(c)
+		if background_layer:
+			background_layer.set_cell(c, SOURCE_ID, tile_theme.background)
+	# The pocket's floor shows its top face once the fake rock fades.
+	for c: Vector2i in plan["floor"]:
+		ground_layer.set_cell(c, SOURCE_ID, tile_theme.surface)
+
+	var cover := FalseWall.new()
+	cover.name = "Secret%d" % (index + 1)
+	cover.tile_set = ground_layer.tile_set
+	cover.source_id = SOURCE_ID
+	cover.cells = cover_cells
+	cover.tiles = cover_tiles
+	_add_generated(root, cover)
+	if cracked:
+		var wall := CrackedWall.new()
+		wall.name = "Secret%dPlug" % (index + 1)
+		wall.tile_set = ground_layer.tile_set
+		wall.source_id = SOURCE_ID
+		wall.tiles = plug_tiles
+		wall.size_tiles = plug.size
+		wall.position = Vector2(plug.position * TILE)
+		_add_generated(root, wall)
+
+	# The back of the pocket: a find goes here (Level), otherwise coins.
+	secret_spots.append(plan["back"])
+	if index < secret_find_count or not pickup_scene:
+		return
+	var coins := 0
+	for c: Vector2i in plan["coins"]:
+		if coins >= secret_coins:
+			break
+		if cracked and plug.has_point(c):
+			continue
+		_spawn_entity(root, pickup_scene, Vector2(c.x * TILE + TILE / 2.0, c.y * TILE + TILE / 2.0))
+		coins += 1
+
+
+func _shuffle_with(arr: Array, srng: RandomNumberGenerator) -> void:
+	for i in range(arr.size() - 1, 0, -1):
+		var j := srng.randi_range(0, i)
+		var tmp = arr[i]
+		arr[i] = arr[j]
+		arr[j] = tmp
+
+
+func _add_generated(root: Node, node: Node) -> void:
+	node.set_meta("generated", true)
+	root.add_child(node)
+	if Engine.is_editor_hint() and is_inside_tree():
+		node.owner = get_tree().edited_scene_root
+
+
 func _pick_spread(candidates: Array, count: int, spacing: int, avoid: Array[Vector2i], avoid_dist: int) -> Array:
 	var picked: Array = []
 	for cell: Vector2i in candidates:
@@ -1252,7 +1507,11 @@ func _pick_spread(candidates: Array, count: int, spacing: int, avoid: Array[Vect
 
 
 func _spawn_entity(root: Node, scene: PackedScene, pos: Vector2) -> void:
-	var node := scene.instantiate()
+	# In the editor, keep the instance linked to its scene so baking the room
+	# (Save As New Level) doesn't save the scene's own signal connections a
+	# second time (coins then logged "already connected" on every load).
+	var node := scene.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE if Engine.is_editor_hint() \
+			else PackedScene.GEN_EDIT_STATE_DISABLED)
 	if node is Node2D:
 		node.position = pos
 	node.set_meta("generated", true)

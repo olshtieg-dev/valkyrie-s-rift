@@ -12,8 +12,10 @@ extends Node
 ##                 bindings, plus D-pad up and left stick up; keyboard W / Up / E.
 ##                 O / Circle is kept off it, free for a future attack button)
 ##   Back / Select debug menu (debug builds)
-##   RB / R1, LB / L1, Y / Triangle  deliberately unbound in gameplay: reserved
-##                 for future abilities and an ultimate (see RESERVED_BUTTONS)
+##   RB / R1       Magigonne: hold to aim, release to fire (keyboard: F;
+##                 a found ability, see scripts/combat/magigonne.gd)
+##   LB / L1, Y / Triangle  deliberately unbound in gameplay: reserved for a
+##                 future ability and an ultimate (see RESERVED_BUTTONS)
 ##
 ## Any of these can be changed per player in F1 > Controller setup (see the
 ## bottom of this file); that also picks which pad drives the game.
@@ -35,8 +37,10 @@ const MAPPING_FIXES := [
 ]
 
 
-## Pad buttons kept free of every gameplay action: R1 / L1 are reserved for
-## future abilities, Triangle for an ultimate. Don't bind them by default.
+## Pad buttons stripped from the sword actions (project.godot still binds some
+## of them to next sword): R1 is the Magigonne's (`fire`), L1 is reserved for
+## a future ability, Triangle for an ultimate. Don't bind them to anything
+## else by default.
 const RESERVED_BUTTONS: Array[JoyButton] = [
 	JOY_BUTTON_RIGHT_SHOULDER, JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_Y,
 ]
@@ -48,6 +52,7 @@ func _enter_tree() -> void:
 		Input.add_joy_mapping(mapping, true)
 	_add_sword_rotation_actions()
 	_add_dash_action()
+	_add_fire_action()
 	_add_menu_back_button()
 	_init_controls()
 
@@ -104,6 +109,20 @@ func _add_dash_action() -> void:
 	InputMap.action_add_event("dash", circle)
 
 
+## `fire`: the Magigonne, pad R1 and keyboard F. Added at runtime like dash.
+## Hold to aim, release to shoot (Magigonne reads it only once she owns it).
+func _add_fire_action() -> void:
+	if InputMap.has_action("fire"):
+		return
+	InputMap.add_action("fire", 0.5)
+	var key := InputEventKey.new()
+	key.physical_keycode = KEY_F
+	InputMap.action_add_event("fire", key)
+	var r1 := InputEventJoypadButton.new()
+	r1.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	InputMap.action_add_event("fire", r1)
+
+
 # ---------------------------------------------------------------------------
 # Controller setup: which pad drives the game, and each action's pad bindings.
 # Edited from the F1 menu (scripts/ui/controller_setup.gd), saved to
@@ -133,6 +152,7 @@ const REBINDABLE := [
 	["jump", "Jump"],
 	["attack", "Attack"],
 	["dash", "Dash"],
+	["fire", "Magigonne"],
 	["switch_weapon", "Next sword"],
 	["switch_weapon_prev", "Prev sword"],
 	["move_up", "Up / aim up"],

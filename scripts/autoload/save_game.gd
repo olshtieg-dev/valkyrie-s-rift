@@ -28,6 +28,18 @@ const SAVE_SECTION := "save"
 var current_slot := 0
 ## Seconds played on the current file, including this session.
 var play_time := 0.0
+## Set once anything in the debug menu changes the run (cheats, warps, loadout,
+## reloads): from then on nothing is written to the file, so it keeps the run as
+## it was before. Cleared when a file is loaded or a new climb starts.
+var debug_used := false
+
+
+## Called by the debug menu whenever it changes the run. Stops all saving until
+## the next file load / new climb.
+func mark_debug_used() -> void:
+	if not debug_used and current_slot > 0:
+		print("SaveGame: debug menu used; File %d won't be saved until it's reloaded." % current_slot)
+	debug_used = true
 
 
 func _ready() -> void:
@@ -87,8 +99,8 @@ func summary(slot: int) -> Dictionary:
 		"health": clampi(int(state.get("health", max_health)), 0, max_health),
 		"max_health": max_health,
 		"coins": int(data.get("score", 0)),
-		"wings": int(state.get("flutter_bonus", 0)),
-		"swords": maxi(1, (data.get("owned_weapons", []) as Array).size()),
+		"wings": int(state.get("feathers", int(state.get("flutter_bonus", 0)) + 2)),
+		"swords": (data.get("owned_weapons", []) as Array).size(),
 		"abilities": state.get("abilities", []),
 		"play_time": float(data.get("play_time", 0.0)),
 		"saved_at": int(data.get("saved_at", 0)),
@@ -107,21 +119,22 @@ func load_slot(slot: int) -> bool:
 	GameManager.pedestal_contents = data.get("pedestal_contents", {})
 	GameManager.score_changed.emit()
 	_select(slot, float(data.get("play_time", 0.0)))
-	LevelManager.go_to(data["level_id"], data.get("spawn_id", ""))
+	LevelManager.go_to(data["level_id"], data.get("spawn_id", ""), true)
 	return true
 
 
 ## Starts a fresh climb in a file: clears every carried thing and loads the
-## first room (whose arrival writes the file).
+## first room (whose arrival writes the file). She starts unarmed with broken
+## wings (GameManager.new_climb_state).
 func new_game(slot: int) -> void:
 	GameManager.score = 0
-	GameManager.player_state = {}
+	GameManager.player_state = GameManager.new_climb_state()
 	GameManager.owned_weapons.clear()
 	GameManager.owned_armor.clear()
 	GameManager.pedestal_contents = {}
 	GameManager.score_changed.emit()
 	_select(slot, 0.0)
-	LevelManager.go_to(FIRST_LEVEL, "")
+	LevelManager.go_to(FIRST_LEVEL, "", true)
 
 
 ## Copies one file over another. False if the source is empty or the write fails.
@@ -172,12 +185,13 @@ func _set_setting(section: String, key: String, value: Variant) -> void:
 
 func _select(slot: int, time: float) -> void:
 	current_slot = slot
+	debug_used = false
 	play_time = time
 	_set_setting(SAVE_SECTION, "last_slot", slot)
 
 
 func _on_scene_changed() -> void:
-	if current_slot <= 0:
+	if current_slot <= 0 or debug_used:
 		return
 	var level := LevelManager.current_level
 	if level == null or level != get_tree().current_scene:
@@ -202,7 +216,7 @@ func _on_scene_changed() -> void:
 ## On quit: keep the time played since the last room save, and nothing else
 ## (coins picked up mid-room would come back with the room).
 func _store_play_time() -> void:
-	if current_slot <= 0:
+	if current_slot <= 0 or debug_used:
 		return
 	var data := _read(current_slot)
 	if data.is_empty():

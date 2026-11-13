@@ -58,7 +58,7 @@ func take_hit(hit: Hit) -> void:
 		var at := Vector2(global_position.x + (size_tiles.x * TILE if side > 0 else 0.0),
 				clampf(p.global_position.y - 8.0, global_position.y, global_position.y + size_tiles.y * TILE))
 		CombatFX.burst(self, at, 7.0, VINE_LIGHT, 1.0, 4, 0.15)
-		if p.has_method("recoil") and not p.get("is_dive_attacking"):
+		if p.has_method("recoil") and not p.get("is_dive_attacking") and not hit.ranged:
 			p.recoil(side)
 
 

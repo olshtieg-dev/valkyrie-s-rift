@@ -48,6 +48,8 @@ var _tweens: Array[Tween] = [null, null]
 ## What's audible: a realm id, OVERRIDE_KEY, or "" for silence.
 var _playing_key: String = ""
 var _override: AudioStream = null
+## The override outlives scene changes (a cutscene over a level load).
+var _override_sticky := false
 var _user_linear: float = 1.0
 var _duck_db: float = 0.0
 var _duck_tween: Tween
@@ -138,12 +140,15 @@ func play_realm(realm: String) -> void:
 
 
 ## Boss moments: crossfade to `stream` (looped if it supports it) until
-## `clear_override()` or the next scene change.
-func play_override(stream: AudioStream, fade: float = -1.0) -> void:
+## `clear_override()` or the next scene change. With `sticky` it also survives
+## scene changes and lasts until `clear_override()` / `stop_music()` (a cutscene
+## playing over a level load); the realm still updates underneath.
+func play_override(stream: AudioStream, fade: float = -1.0, sticky: bool = false) -> void:
 	if stream == null:
 		clear_override(fade)
 		return
 	_override = stream
+	_override_sticky = sticky
 	_playing_key = ""  # force the switch even if the same stream plays again
 	_switch(OVERRIDE_KEY, stream, fade)
 
@@ -214,6 +219,9 @@ func _fade(index: int, to_db: float, stop_after: bool, time: float) -> void:
 func _on_scene_changed() -> void:
 	var scene := get_tree().current_scene
 	if scene == null:
+		return
+	if _override != null and _override_sticky:
+		current_realm = realm_for_path(scene.scene_file_path)
 		return
 	_override = null
 	unduck(0.6)

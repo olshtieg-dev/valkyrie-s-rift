@@ -18,7 +18,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 InputSetup="*res://scripts/autoload/input_setup.gd"
-GameManager="*uid://hr71tca0tkls"
+GameManager="*res://scripts/gamemanager.gd"
 LevelManager="*res://scripts/autoload/level_manager.gd"
 DebugMenu="*res://scripts/autoload/debug_menu.gd"
 MusicPlayer="*res://scripts/audio/music_player.gd"

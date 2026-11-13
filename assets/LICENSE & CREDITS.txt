@@ -218,3 +218,11 @@ PLAYER ARMOR SKINS (assets/sprites/valkyrie/skins/*.png)
   Brackeys pack, CC0, credited above) and flutterfall.png, made by
   tools/gen_player_skins.py. The original sheets are unchanged.
   License: same as the project (no external attribution required).
+
+
+MUSIC: "The Cherub" theme (new-climb cutscene)
+  Original composition for Valkyrie's Rift, written as MIDI by a project script
+  (tools/gen_cherub_theme.py); no third-party melodies or recordings. Same
+  method and license terms as the realm soundtracks above (rendered with
+  FluidSynth and the GeneralUser GS v1.47 SoundFont by S. Christian Collins).
+  Files: assets/music/themes/cherub.mid, assets/music/themes/cherub.ogg

@@ -37,7 +37,7 @@ const RUNE_FLASH := 0.14
 ## Short, accurate hints. Keep them in line with input_setup.gd / project.godot,
 ## and leave out the interact button (it's becoming "press up").
 const TIPS := [
-	"Jump again while falling to flutter. Feathers refill when you land.",
+	"Once her wings are mended, jump again while falling to flutter.",
 	"Hold jump for a higher leap.",
 	"Hold down while falling to drop faster.",
 	"Down + jump on a thin platform drops through it.",
@@ -48,6 +48,7 @@ const TIPS := [
 	"Side routes hide swords, armor and abilities.",
 	"Coins barter for gear at Valkyrie shrines.",
 	"Armor can shrug off an element's damage.",
+	"Not every wall is solid. Cracked rock gives way to a blow or a stomp.",
 ]
 
 ## The feather, quill on the left: '#' vane, '+' realm-tinted vane, 'S' shaft,

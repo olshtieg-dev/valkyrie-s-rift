@@ -83,15 +83,19 @@ const DROP_THROUGH_TIME = 0.25
 const NOCLIP_SPEED = 320.0
 
 # --- PROGRESSION VARIABLES ---
-## Flutters per airtime = the active sword's base (1-3) + flutter_bonus
-## (wing feathers, the "wings" side-route finds; about six across the climb)
-## + the armor's bonus_feathers. The cap is on that total, never the bonus
+## Her wings start broken: no flutter at all (even holding a sword) until she
+## has found WINGS_FEATHERS wing feathers (WingFeather; the first two lie on
+## hel_h08's main path, see LevelRegistry "path_find"). From then on, flutters
+## per airtime = the active sword's base (1-3) + each feather past those two
+## + the armor's bonus_feathers. The cap is on that total, never the feathers
 ## alone: swords keep their flutter difference until she nears the cap, and
 ## she can't truly fly.
 const FLUTTER_CAP = 8
+const WINGS_FEATHERS = 2
 var max_flutter_charges = 2
 var flutter_charges_left = 2
-var flutter_bonus = 0
+## Wing feathers found, all of them (saved as player_state "feathers").
+var flutter_bonus = WINGS_FEATHERS
 signal wings_updated(count)
 signal health_updated(count)
 signal weapon_switched(is_sword_1) # kept for the old HUD button
@@ -181,8 +185,10 @@ var _damage_carry := 0.0
 ## Separate slots for other kinds of items are planned; give them their own
 ## constant beside this one rather than sharing the sword count.
 const MAX_LOADOUT: int = 4
-## She starts with the blade alone; the rest are side-route finds (see
-## LevelRegistry "find") or bought at shrines.
+## A new climb starts with none (unarmed: GameManager.new_climb_state); the
+## blade lies on hel_02's main path (LevelRegistry "path_find"), the rest are
+## side-route finds ("find") or bought at shrines. This default is what she
+## carries when there's no carried state (a room run on its own, debug warps).
 @export var loadout: Array[WeaponData] = [
 	preload("res://data/weapons/valkyrie_blade.tres"),
 ]
@@ -207,7 +213,7 @@ func _ready() -> void:
 			armor = worn
 	_apply_armor_stats()
 	current_health = clampi(state.get("health", max_health), 1, max_health)
-	flutter_bonus = state.get("flutter_bonus", 0)
+	flutter_bonus = _feathers_from(state)
 	last_safe_position = global_position
 	_setup_hazard_sensor()
 
@@ -237,6 +243,9 @@ func _ready() -> void:
 	pivot.add_child(meteor_sword)
 
 	# --- LOADOUT SETUP ---
+	# A carried empty loadout means unarmed (a new climb, GameManager.
+	# new_climb_state). No carried state at all (a room run on its own, a debug
+	# warp) keeps the exported blade.
 	var start_loadout := loadout
 	if state.has("loadout"):
 		var carried: Array[WeaponData] = []
@@ -244,7 +253,7 @@ func _ready() -> void:
 			var data := load(path) as WeaponData
 			if data:
 				carried.append(data)
-		if not carried.is_empty():
+		if not carried.is_empty() or (state["loadout"] as Array).is_empty():
 			start_loadout = carried
 	set_loadout(start_loadout, state.get("weapon_slot", 0))
 	for data in loadout:
@@ -253,6 +262,17 @@ func _ready() -> void:
 	animated_sprite.self_modulate = armor.tint if armor else Color.WHITE
 	_base_frames = animated_sprite.sprite_frames
 	apply_skin()
+
+
+## Wing feathers in carried state. Saves from before the unarmed opening kept
+## only the side-route feathers ("flutter_bonus") on top of the blade's two
+## flutters, so those count the two that mend her wings as found. No state =
+## a room run on its own or a debug warp: wings already mended.
+static func _feathers_from(state: Dictionary) -> int:
+	if state.has("feathers"):
+		return int(state["feathers"])
+	return int(state.get("flutter_bonus", 0)) + WINGS_FEATHERS
+
 
 ## Re-skins her sprite to the chosen PlayerSkins skin, keeping the current
 ## animation and frame. Called on spawn and whenever the skin is changed.
@@ -357,7 +377,8 @@ func _physics_process(delta: float) -> void:
 				is_jumping = false
 
 			# Trigger Flutter
-			if Input.is_action_just_pressed("jump") and velocity.y > 10 and flutter_charges_left > 0 and hurt_stun_timer <= 0.0:
+			if Input.is_action_just_pressed("jump") and velocity.y > 10 and hurt_stun_timer <= 0.0 \
+					and (flutter_charges_left > 0 or DebugMenu.infinite_flutter):
 				start_flutter()
 	else:
 		# RESET ON FLOOR
@@ -472,10 +493,12 @@ func _attack_direction() -> Vector2:
 	return Vector2.UP if Input.is_action_pressed("move_up") else Vector2.RIGHT
 
 
+## Unarmed she can still attack: the meteor strike (a bare power stomp) needs
+## no sword, and execute_attack() does nothing without one.
 func _can_attack() -> bool:
 	return hurt_stun_timer <= 0.0 and attack_lock_timer <= 0.0 and attack_cooldown <= 0.0 \
-			and not is_dive_attacking and active_weapon != null \
-			and not (active_weapon.has_method("is_swinging") and active_weapon.is_swinging())
+			and not is_dive_attacking \
+			and not (active_weapon and active_weapon.has_method("is_swinging") and active_weapon.is_swinging())
 
 
 ## Whether an `interact` press (up) should use what she's standing at. Up is
@@ -638,6 +661,14 @@ func start_dive_attack():
 	Sfx.play(&"meteor_windup", -1.0, 0.0, 0.75)
 	_set_dive_attack_hitbox_enabled(false)
 	dive_attack_shape.scale = Vector2.ONE * weapon_data.reach # the sword's reach
+	if _meteor_tween:
+		_meteor_tween.kill()
+		_meteor_tween = null
+	if active_weapon == null:
+		# Unarmed: a power stomp. No sword to flip, she tucks and drops
+		# boots first (her dive frames); the trail and landing do the rest.
+		meteor_sword.visible = false
+		return
 	# Sword flips from overhead to straight down during the windup.
 	meteor_sword.visible = true
 	meteor_sword.position = METEOR_SWORD_UP
@@ -665,7 +696,8 @@ func _meteor_step(delta: float) -> void:
 	if meteor_trail_timer <= 0.0:
 		meteor_trail_timer = METEOR_TRAIL_INTERVAL
 		CombatFX.afterimage(animated_sprite, METEOR_TRAIL_TINT)
-		CombatFX.afterimage(meteor_sword, METEOR_TRAIL_TINT)
+		if meteor_sword.visible:
+			CombatFX.afterimage(meteor_sword, METEOR_TRAIL_TINT)
 
 
 func _end_meteor() -> void:
@@ -987,8 +1019,9 @@ func add_flutter_charge(amount: int = 1):
 	flutter_charges_left = min(flutter_charges_left + amount, max_flutter_charges)
 	wings_updated.emit(flutter_charges_left)
 
-## Permanent upgrade (WingFeather find, scripts/wings.gd): one more flutter
-## per airtime, on top of the sword's base (the total stays <= FLUTTER_CAP).
+## Permanent upgrade (WingFeather, scripts/wings.gd): one more feather. The
+## first WINGS_FEATHERS mend her wings (the sword's own flutters); each one
+## after is one more flutter per airtime (the total stays <= FLUTTER_CAP).
 func add_flutter_slot(amount: int = 1):
 	flutter_bonus += amount
 	Sfx.play(&"power_up")
@@ -1085,12 +1118,13 @@ func switch_sword(step: int) -> void:
 
 ## Replaces the carried swords (1 to MAX_LOADOUT) and equips `slot`. Used at
 ## start, by shrines (armory) and pedestals. Flutters are kept, not refilled.
+## An empty loadout leaves her unarmed (WeaponData.unarmed()): the start of
+## the climb, before the Valkyrie Blade in hel_02.
 func set_loadout(new_loadout: Array, slot: int = 0) -> void:
 	var swords: Array[WeaponData] = []
 	for data in new_loadout:
 		if data is WeaponData and data.scene and not data in swords and swords.size() < MAX_LOADOUT:
 			swords.append(data)
-	assert(not swords.is_empty(), "She must carry at least one sword")
 	var first_time := weapon_data == null
 	for inst in loadout_instances:
 		inst.queue_free()
@@ -1134,9 +1168,15 @@ func _equip(slot: int, refill_flutter: bool) -> void:
 			active_weapon.cancel_swing()
 		_disable_weapon(active_weapon)
 	active_slot = slot
-	weapon_data = loadout[slot]
-	active_weapon = loadout_instances[slot]
-	_enable_weapon(active_weapon)
+	if loadout.is_empty():
+		# Unarmed: bare movement, no swing (active_weapon stays null).
+		active_slot = 0
+		weapon_data = WeaponData.unarmed()
+		active_weapon = null
+	else:
+		weapon_data = loadout[slot]
+		active_weapon = loadout_instances[slot]
+		_enable_weapon(active_weapon)
 	max_flutter_charges = _max_flutter()
 	if refill_flutter:
 		flutter_charges_left = max_flutter_charges
@@ -1150,8 +1190,10 @@ func _equip(slot: int, refill_flutter: bool) -> void:
 
 
 func _max_flutter() -> int:
+	if flutter_bonus < WINGS_FEATHERS:
+		return 0 # wings still broken: no flutter from sword or armor
 	var feathers := armor.bonus_feathers if armor else 0
-	return mini(weapon_data.flutter_charges + flutter_bonus + feathers, FLUTTER_CAP)
+	return mini(weapon_data.flutter_charges + flutter_bonus - WINGS_FEATHERS + feathers, FLUTTER_CAP)
 
 
 ## Element of the level's hazard tiles (lava burns; poison pools don't).

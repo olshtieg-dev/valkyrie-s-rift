@@ -37,14 +37,14 @@ collision_enabled = false
 [node name="Generator" type="Node" parent="." node_paths=PackedStringArray("ground_layer", "background_layer", "decor_layer", "entities_root")]
 script = ExtResource("3_gen")
 style = 0
-width = 40
-height = 28
+width = 52
+height = 36
 level_seed = 909
 open_west = true
 west_at = 0.7
 hazard_chance = 0.0
 enemy_count = 0
-pickup_count = 6
+pickup_count = 10
 tile_theme = ExtResource("4_theme")
 pickup_scene = ExtResource("7_coin")
 ground_layer = NodePath("../Ground")

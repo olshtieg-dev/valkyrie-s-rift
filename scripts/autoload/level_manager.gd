@@ -1,7 +1,10 @@
 extends Node
-## Moves the player between levels: fade out, loading card (LoadingScreen)
-## while the scene loads on a thread, swap, fade in. The tree stays paused and
-## input is swallowed for the whole transition.
+## Moves the player between levels: fade out, load the scene on a thread, swap,
+## fade in. The tree stays paused and input is swallowed for the whole transition.
+## The grand loading card (LoadingScreen) is kept for big moments: entering a
+## new realm, and loading a save / starting a game (`grand`). An ordinary room
+## change is a quick dip through black, and the room shows its name as a small
+## HUD tag instead (Level.announce), so rooms don't feel smaller than billed.
 ## Reloads (death, F4) skip the card: the room just fades in from black.
 ## Remembers which spawn the player arrived at so death reloads put them back
 ## at the room entrance, and holds debug seed overrides for generated rooms.
@@ -10,9 +13,7 @@ extends Node
 const FADE_OUT := 0.18
 ## Seconds to fade the new room in from black.
 const FADE_IN := 0.25
-## Least time the loading card stays up, so fast loads don't flicker...
-const CARD_MIN := 0.5
-## ...and a little longer when she enters a new realm, so its name lands.
+## Least time the grand card stays up (new realm, save load), so its name lands.
 const CARD_MIN_NEW_REALM := 1.1
 ## Seconds a reloaded room (death, F4, game start) fades in from black.
 const RELOAD_FADE_IN := 0.3
@@ -54,7 +55,9 @@ func _input(_event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func go_to(level_id: String, target_spawn: String = "") -> void:
+## `grand` forces the full realm card even within the same realm (loading a
+## save, starting a new game). Crossing into a new realm always gets it.
+func go_to(level_id: String, target_spawn: String = "", grand: bool = false) -> void:
 	if _busy:
 		return
 	var info := LevelRegistry.find(level_id)
@@ -71,18 +74,21 @@ func go_to(level_id: String, target_spawn: String = "") -> void:
 
 	var from_realm: String = LevelRegistry.find(current_level_id).get("realm", "")
 	var new_realm: bool = info["realm"] != from_realm
-	_card.show_for(info)
+	var show_card := grand or new_realm
+	if show_card:
+		_card.show_for(info)
 	if new_realm:
 		# Start the realm crossfade under the card. MusicPlayer ignores the
 		# repeat request it makes itself on scene_changed (same track key).
 		MusicPlayer.play_realm(info["realm"])
-	var packed := await _load_scene(info["path"], CARD_MIN_NEW_REALM if new_realm else CARD_MIN)
+	var packed := await _load_scene(info["path"], CARD_MIN_NEW_REALM if show_card else 0.0)
 	var err := FAILED
 	if packed:
 		spawn_id = target_spawn
 		current_level_id = level_id
 		current_level = null
-		_announce = true
+		# The card already named the room; otherwise the HUD tag does.
+		_announce = not show_card
 		err = get_tree().change_scene_to_packed(packed)
 	if err == OK:
 		await get_tree().scene_changed
@@ -117,7 +123,8 @@ func _load_scene(path: String, min_time: float) -> PackedScene:
 		var loaded := status == ResourceLoader.THREAD_LOAD_LOADED
 		var real := 1.0 if loaded else (float(progress[0]) if not progress.is_empty() else 0.0)
 		var elapsed := (Time.get_ticks_msec() - start) / 1000.0
-		_card.progress = minf(real, elapsed / min_time)
+		if min_time > 0.0:
+			_card.progress = minf(real, elapsed / min_time)
 		if loaded and elapsed >= min_time:
 			break
 		await get_tree().process_frame

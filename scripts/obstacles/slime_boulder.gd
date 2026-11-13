@@ -94,7 +94,7 @@ func take_hit(hit: Hit) -> void:
 	_wobble = 1.0
 	CombatFX.burst(self, _hit_point(), 7.0, LIGHT, 1.0, 4, 0.15)
 	var p := get_tree().get_first_node_in_group("player")
-	if p and p.has_method("recoil") and not p.get("is_dive_attacking"):
+	if p and p.has_method("recoil") and not p.get("is_dive_attacking") and not hit.ranged:
 		p.recoil(signf(p.global_position.x - global_position.x))
 
 

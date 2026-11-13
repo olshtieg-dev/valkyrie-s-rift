@@ -42,6 +42,7 @@ A shared sign-in board, so agents (and humans) can see who is working on what ri
 
 | Worker | Task | Files / areas claimed | Started | Notes |
 |---|---|---|---|---|
+| claude-hel-tuning | Tune Hel rooms' generator settings/seeds so the climb needs flutters; new seed-scan tool | generator export lines in `levels/hel/h01…h13*.tscn` + `levels/hel/hel_02_brimstone_ascent.tscn` (not `hel_01`), new `tools/seed_scan.gd`, Rooms table in `docs/realms/hel.md` | 2026-11-13 14:05 | Read-only use of the generator and reach checker |
 
 ## Environment
 

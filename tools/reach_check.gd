@@ -6,12 +6,17 @@ extends SceneTree
 ##
 ##   godot --headless --script res://tools/reach_check.gd
 ##   godot --headless --script res://tools/reach_check.gd -- hel_01 sky_01
+##   godot --headless --script res://tools/reach_check.gd -- --unarmed hel_h01 hel_02
+##
+## --unarmed checks the start of the climb instead: her bare-handed movement
+## with no flutter and no dash (ReachCheck.unarmed). 0 = reachable without a
+## flutter, -1 = not.
 ##
 ## Uses scripts/level/reach_check.gd (see there for what it does and doesn't
 ## count). Rooms use their seed overrides from the debug menu, if any.
 ## Generated rooms start at their start/south anchor, hand-built ones at their
 ## default spawn; goals are every LevelExit but the one beside the start, plus
-## side-route finds.
+## side-route finds and main-path finds ("path ...", LevelRegistry "path_find").
 
 const SWORDS := [
 	"res://data/weapons/valkyrie_blade.tres",
@@ -33,11 +38,16 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var only := OS.get_cmdline_user_args()
+	var unarmed := only.has("--unarmed")
+	only.erase("--unarmed")
 	var registry: GDScript = load("res://scripts/level/level_registry.gd")
 	var checker: GDScript = load("res://scripts/level/reach_check.gd")
 	var swords: Array = SWORDS.map(func(p: String) -> Resource: return load(p))
-	print("Feathers per airtime needed (-1 = not reachable with %d)." % MAX_FLUTTERS)
-	print("Columns: %s, flutters only | the same with the dash.\n" % ", ".join(swords.map(func(w: Resource) -> String: return w.display_name)))
+	if unarmed:
+		print("Unarmed, no flutter, no dash: 0 = reachable, -1 = not.\n")
+	else:
+		print("Feathers per airtime needed (-1 = not reachable with %d)." % MAX_FLUTTERS)
+		print("Columns: %s, flutters only | the same with the dash.\n" % ", ".join(swords.map(func(w: Resource) -> String: return w.display_name)))
 	for entry: Dictionary in registry.LEVELS:
 		if not only.is_empty() and not only.has(entry["id"]):
 			continue
@@ -80,7 +90,8 @@ func _run() -> void:
 			goals["exit %s" % (label if label != "" else String(node.name))] = r
 		var points := {}
 		for node in level.get_children():
-			if String(node.name).begins_with("SideRouteFind"):
+			var path_find := String(node.name).begins_with("PathFind")
+			if String(node.name).begins_with("SideRouteFind") or path_find:
 				var what := "heart"
 				if node.get_script().resource_path.ends_with("/wings.gd"):
 					what = "wings"
@@ -90,24 +101,35 @@ func _run() -> void:
 					what = node.weapon.display_name
 				elif node.get("armor"):
 					what = node.armor.display_name
-				points["find %s" % what] = node.position
+				var key := "%s %s" % ["path" if path_find else "find", what]
+				if points.has(key):
+					key += " (%s)" % node.name
+				points[key] = node.position
 		var rows := {}
 		var t0 := Time.get_ticks_msec()
 		var cells := 0
-		for dash in [false, true]:
-			for sword: Resource in swords:
-				var check: RefCounted = checker.new(gen, sword, MAX_FLUTTERS, dash)
-				var result: Dictionary = check.run(start, goals, points)
-				cells = maxi(cells, result["_cells"].size())
-				for key: String in goals.keys() + points.keys():
-					if not rows.has(key):
-						rows[key] = []
-					rows[key].append(result[key])
+		var checks: Array = []
+		if unarmed:
+			checks.append(checker.unarmed(gen))
+		else:
+			for dash in [false, true]:
+				for sword: Resource in swords:
+					checks.append(checker.new(gen, sword, MAX_FLUTTERS, dash))
+		for check: RefCounted in checks:
+			var result: Dictionary = check.run(start, goals, points)
+			cells = maxi(cells, result["_cells"].size())
+			for key: String in goals.keys() + points.keys():
+				if not rows.has(key):
+					rows[key] = []
+				rows[key].append(result[key])
 		print("%s  %s  (%d floor cells reached, %.1fs)" % [entry["id"], entry["name"], cells, (Time.get_ticks_msec() - t0) / 1000.0])
 		if rows.is_empty():
 			print("    (no exits or finds)")
 		for key: String in rows:
 			var nums: Array = rows[key].map(func(n: int) -> String: return "%3d" % n)
+			if unarmed:
+				print("    %-28s %s" % [key, nums[0]])
+				continue
 			var half := nums.size() / 2
 			print("    %-28s %s  |%s" % [key, "  ".join(nums.slice(0, half)), "  ".join(nums.slice(half))])
 		level.queue_free()

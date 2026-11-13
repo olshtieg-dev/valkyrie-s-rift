@@ -105,6 +105,7 @@ func _on_card(slot: int) -> void:
 			if used:
 				SaveGame.load_slot(slot)
 			else:
+				NewGameIntro.play(get_tree()) # the cherub scene, over the first room's load
 				SaveGame.new_game(slot)
 		Mode.COPY_FROM:
 			_source = slot

@@ -101,6 +101,17 @@ func _build() -> void:
 			_cancel_listen()
 			InputSetup.clear_bindings(action)))
 
+	# Magigonne aim mode (saved in user://settings.cfg, read by Magigonne).
+	add_child(_heading("MAGIGONNE AIM"))
+	var aim := Button.new()
+	aim.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	aim.text = Magigonne.aim_mode_name(Magigonne.aim_mode())
+	aim.pressed.connect(func() -> void:
+		var next := Magigonne.AimMode.STICK if Magigonne.aim_mode() == Magigonne.AimMode.SWEEP else Magigonne.AimMode.SWEEP
+		Magigonne.set_aim_mode(next)
+		aim.text = Magigonne.aim_mode_name(next))
+	add_child(aim)
+
 	_status = Label.new()
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override("font_color", Color(1, 0.85, 0.4))

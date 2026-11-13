@@ -93,6 +93,15 @@ const SOUNDS := {
 	## Coin grabbed. Pickup.play_coin_sound() raises the pitch through a quick combo.
 	&"coin": {"files": ["res://assets/sounds/coin.wav"], "db": -9.0, "jitter": 0.02, "cooldown": 0.04},
 	&"power_up": {"files": ["res://assets/sounds/power_up.wav"], "db": -4.0, "jitter": 0.0, "cooldown": 0.2},
+	## A mana drop, or the trickle refilling a shot (played lower).
+	&"mana": {"files": ["res://assets/sounds/juhani_junkala_retro_512/heal.wav"], "db": -9.0, "jitter": 0.03, "cooldown": 0.05},
+	# --- Magigonne (scripts/combat/magigonne.gd) ---
+	## The hand cannon's boom: the explosion, pitched up into a short crack.
+	&"magigonne_fire": {"files": ["res://assets/sounds/explosion.wav"], "db": -11.0, "jitter": 0.06, "cooldown": 0.05},
+	## Trigger pulled on an empty bar.
+	&"magigonne_empty": {"files": ["res://assets/sounds/tap.wav"], "db": -8.0, "jitter": 0.0, "cooldown": 0.15},
+	&"magigonne_bounce": {"files": ["res://assets/sounds/tap.wav"], "db": -12.0, "jitter": 0.1, "cooldown": 0.04},
+	&"magigonne_hit": {"files": ["res://assets/sounds/yo_frankie/projectile_splat.wav"], "db": -6.0, "jitter": 0.08, "cooldown": 0.04},
 	# --- enemies ---
 	# Positional (Sfx.play_at via Enemy.play_sfx), a few dB under her sounds.
 	# Short cooldowns so a swarm (cinder mites) or a pair of shockwaves sounds once.

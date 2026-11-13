@@ -30,7 +30,11 @@ func _on_self_pressed():
 
 ## Shows the equipped weapon's own icon and tint. Falls back to its swing art,
 ## then to the old per-slot icons for weapons with no art of their own.
+## Hidden while she has no sword (WeaponData.unarmed(): no swing scene).
 func show_weapon(data: WeaponData, slot: int) -> void:
+	visible = data != null and data.scene != null
+	if not visible:
+		return
 	var tex: Texture2D = null
 	if data:
 		tex = data.icon if data.icon else data.swing_texture

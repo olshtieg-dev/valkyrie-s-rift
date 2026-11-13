@@ -1,17 +1,19 @@
 class_name Pickup
 extends Area2D
-## Dropped heart or coin. Pops out of whatever dropped it, falls to the
+## Dropped heart, coin or mana gem. Pops out of whatever dropped it, falls to the
 ## ground (hearts drift down swaying, coins drop straight), sits there, then
 ## blinks and expires. Spawn with Pickup.spawn().
 ##
-## Hearts heal one heart (2 half-hearts). Coins are barter currency.
+## Hearts heal one heart (2 half-hearts). Coins are barter currency. Mana
+## gems refill Magigonne shots (dropped only once she owns it).
 
-enum Kind { HEART, COIN }
+enum Kind { HEART, COIN, MANA }
 
 const SHEET := preload("res://assets/sprites/kenney_pixel_platformer/tilemap_packed.png")
 const REGIONS := {
 	Kind.HEART: Rect2(4 * 18, 2 * 18, 18, 18),
 	Kind.COIN: Rect2(11 * 18, 7 * 18, 18, 18),
+	Kind.MANA: Rect2(7 * 18, 3 * 18, 18, 18), # the blue gem
 }
 const PLAYER_LAYER := 2
 const GROUND_MASK := 1 | 32 # world + one-way
@@ -193,4 +195,10 @@ func _on_body_entered(body: Node2D) -> void:
 			GameManager.add_coins(amount)
 			Pickup.play_coin_sound()
 			CombatFX.burst(self, global_position, 8.0, Color(1, 0.85, 0.3), 1.0, 3, 0.2)
+		Kind.MANA:
+			var gun := Magigonne.of(body)
+			if gun:
+				gun.add_mana(amount)
+			Sfx.play(&"mana", -1.0, 0.0, 1.25)
+			CombatFX.burst(self, global_position, 9.0, Color(0.55, 0.75, 1.0), 1.0, 4, 0.22)
 	queue_free()

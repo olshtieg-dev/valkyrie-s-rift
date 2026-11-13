@@ -8,8 +8,8 @@ var score := 0
 var coins: int:
 	get: return score
 
-## Carried across level transitions: health, flutter bonus, sword loadout
-## (resource paths), the active slot and found abilities.
+## Carried across level transitions: health, wing feathers, sword loadout
+## (resource paths; empty = unarmed), the active slot and found abilities.
 ## Cleared of "health" on death so the player respawns at full starting health.
 var player_state: Dictionary = {}
 
@@ -78,6 +78,14 @@ func reset_score():
 	score = 0
 	score_changed.emit()
 
+## What a new climb starts with: no sword and broken wings (no feathers).
+## The Valkyrie Blade waits in hel_02 and the feathers that mend her wings in
+## hel_h08 (LevelRegistry "path_find"). An empty player_state instead (a room
+## run on its own, a debug warp) spawns her with the blade and mended wings.
+func new_climb_state() -> Dictionary:
+	return {"loadout": [], "weapon_slot": 0, "feathers": 0}
+
+
 func store_player_state(player: Node) -> void:
 	var loadout_paths: Array[String] = []
 	for data: Resource in player.loadout:
@@ -86,7 +94,7 @@ func store_player_state(player: Node) -> void:
 		"health": player.current_health,
 		"max_health": player.base_max_health, # heart containers, without armor
 		"armor": player.armor.resource_path if player.armor else "",
-		"flutter_bonus": player.flutter_bonus,
+		"feathers": player.flutter_bonus, # wing feathers found (Player.WINGS_FEATHERS)
 		"loadout": loadout_paths,
 		"weapon_slot": player.active_slot,
 		"abilities": player_state.get("abilities", []),

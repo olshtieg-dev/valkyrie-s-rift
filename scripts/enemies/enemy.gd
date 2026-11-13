@@ -43,6 +43,9 @@ signal armor_broken(enemy: Enemy)
 @export var heart_on_stylish_kill: bool = true
 @export_range(0.0, 1.0) var coin_drop_chance: float = 0.5
 @export var coin_drop_amount: int = 1
+## Chance of a Magigonne mana gem, once she owns it (doubled while her bar
+## is empty, so a drained bar refills from the fight in front of her).
+@export_range(0.0, 1.0) var mana_drop_chance: float = 0.25
 
 @export_group("Armor")
 ## Armored enemies shrug off sword slashes (clink + the player bounces off).
@@ -470,6 +473,11 @@ func _drop_loot() -> void:
 		Pickup.spawn(self, at, Pickup.Kind.HEART)
 	if coin_drop_amount > 0 and randf() < coin_drop_chance:
 		Pickup.spawn(self, at, Pickup.Kind.COIN, coin_drop_amount)
+	var gun := Magigonne.of(player())
+	if gun and gun.owned():
+		var chance := mana_drop_chance * (2.0 if gun.mana == 0 else 1.0)
+		if randf() < chance:
+			Pickup.spawn(self, at, Pickup.Kind.MANA)
 
 
 func _deal_contact_damage() -> void:

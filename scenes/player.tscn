@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://e5p2ibbwg6pl" path="res://assets/sprites/flutterfall.png" id="3_qhqgy"]
 [ext_resource type="PackedScene" uid="uid://sfdgdk4ik48" path="res://scenes/sword.tscn" id="4_dqkch"]
 [ext_resource type="PackedScene" uid="uid://c507c5jmfoksv" path="res://scenes/sword2.tscn" id="5_qlg0r"]
+[ext_resource type="Script" uid="uid://b03lg4du8qi6n" path="res://scripts/combat/magigonne.gd" id="6_magig"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_gl8cc"]
 radius = 4.0
@@ -316,3 +317,6 @@ position = Vector2(5, 6.6666665)
 z_index = -1
 
 [node name="Sword2" parent="Pivot/WeaponAnchor" unique_id=2077506230 instance=ExtResource("5_qlg0r")]
+
+[node name="Magigonne" type="Node2D" parent="."]
+script = ExtResource("6_magig")

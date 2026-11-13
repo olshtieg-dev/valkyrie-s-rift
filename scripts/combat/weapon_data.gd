@@ -76,3 +76,34 @@ extends Resource
 @export var swing_sound: StringName = &""
 ## Sfx id when a swing lands. Empty = by element (heavy hitters thud).
 @export var hit_sound: StringName = &""
+
+
+## Her "loadout" with no sword at all: the start of the climb, before she finds
+## the Valkyrie Blade in hel_02. The blade's movement (so tuning the blade
+## tunes her bare-handed feel too), but no swing, no flutters of its own and
+## no rising slash or lunge: her one attack is the meteor strike, a bare power
+## stomp. Built in code (never a .tres, so no list of swords picks it up) and
+## shared; its empty resource_path keeps it out of saves and owned_weapons.
+const UNARMED_BASE := "res://data/weapons/valkyrie_blade.tres"
+static var _unarmed: WeaponData
+
+
+static func unarmed() -> WeaponData:
+	if _unarmed == null:
+		var w := (load(UNARMED_BASE) as WeaponData).duplicate() as WeaponData
+		w.id = &"unarmed"
+		w.display_name = "Unarmed"
+		w.description = "No sword. Down + attack in the air is a power stomp."
+		w.scene = null
+		w.swing_texture = null
+		w.icon = null
+		w.tint = Color.WHITE
+		w.price = 0
+		w.element = Hit.Element.NONE
+		w.heavy_hits = false
+		w.reach = 1.0 # her boots, not a blade
+		w.rising_lift = 0.0
+		w.lunge_speed = 0.0
+		w.flutter_charges = 0
+		_unarmed = w
+	return _unarmed

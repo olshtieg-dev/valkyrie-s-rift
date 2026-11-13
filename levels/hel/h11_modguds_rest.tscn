@@ -38,8 +38,8 @@ collision_enabled = false
 [node name="Generator" type="Node" parent="." node_paths=PackedStringArray("ground_layer", "background_layer", "decor_layer", "entities_root")]
 script = ExtResource("3_gen")
 style = 0
-width = 36
-height = 24
+width = 48
+height = 32
 level_seed = 1111
 open_west = true
 west_at = 0.75

@@ -15,10 +15,13 @@ const STONE_LIT := Color(0.52, 0.48, 0.55)
 const STONE_DARK := Color(0.2, 0.18, 0.22)
 
 ## Name, hint and sigil color per ability id. The hint names the action;
-## "%s" becomes the keyboard key bound to it (if any).
+## "%s" becomes the keyboard key bound to it (the input action named like the
+## ability, or the entry's "action").
 const INFO := {
 	&"dash": {"name": "Dash Strike", "hint": "O / %s: dash any way you hold (8-way), or where you face. In the air, or upward, it spends a feather.",
 			"color": Color(0.8, 1.15, 1.4)}, # overbright: reads through realm tints
+	&"magigonne": {"name": "The Magigonne", "hint": "R1 / %s: hold to aim, let go to fire. Each shot spends mana; shots take your sword's element and ricochet off walls.",
+			"action": &"fire", "color": Color(0.95, 0.8, 1.45)}, # seidr violet, overbright
 }
 
 @export var ability: StringName = &"dash"
@@ -69,12 +72,19 @@ func _draw() -> void:
 	draw_rect(Rect2(o + Vector2(-4, -6), Vector2(8, 11)), STONE)
 	draw_rect(Rect2(o + Vector2(-4, -6), Vector2(8, 1)), STONE_LIT)
 	draw_rect(Rect2(o + Vector2(3, -5), Vector2(1, 10)), STONE_DARK)
-	# Sigil: two chevrons pointing ahead (>>), glowing.
 	var glow := Color(c, 0.85 + 0.15 * sin(_t * 5.0))
-	for chevron in [-2, 1]:
-		for i in 3:
-			draw_rect(Rect2(o + Vector2(chevron + i - 1, -3 + i), Vector2(1, 1)), glow)
-			draw_rect(Rect2(o + Vector2(chevron + i - 1, 1 - i), Vector2(1, 1)), glow)
+	if ability == &"magigonne":
+		# Sigil: a flared muzzle (a bell shape opening to the right), glowing.
+		for y in range(-1, 1):
+			draw_rect(Rect2(o + Vector2(-3, y), Vector2(4, 1)), glow)
+		draw_rect(Rect2(o + Vector2(1, -2), Vector2(1, 4)), glow)
+		draw_rect(Rect2(o + Vector2(2, -3), Vector2(1, 6)), glow)
+	else:
+		# Sigil: two chevrons pointing ahead (>>), glowing.
+		for chevron in [-2, 1]:
+			for i in 3:
+				draw_rect(Rect2(o + Vector2(chevron + i - 1, -3 + i), Vector2(1, 1)), glow)
+				draw_rect(Rect2(o + Vector2(chevron + i - 1, 1 - i), Vector2(1, 1)), glow)
 	# Speed streaks sliding through it, left to right.
 	for i in 3:
 		var x := fmod(_t * 28.0 + i * 9.0, 26.0) - 13.0
@@ -106,7 +116,7 @@ static func title_text(id: StringName) -> String:
 	var info: Dictionary = INFO.get(id, {"name": String(id).capitalize(), "hint": ""})
 	var hint: String = info["hint"]
 	if hint.contains("%s"):
-		hint = hint % _key_name(id)
+		hint = hint % _key_name(info.get("action", id))
 	return "%s: %s" % [info["name"], hint] if hint != "" else String(info["name"])
 
 

@@ -44,6 +44,7 @@ func _ready() -> void:
 	_place_exits()
 	if place_shrine:
 		_place_shrine()
+	_place_path_finds()
 	bounds_rect = _compute_bounds()
 	_create_bounds(bounds_rect)
 	_apply_atmosphere()
@@ -59,10 +60,12 @@ func _build() -> void:
 		_configure_detours()
 		generator.generate_if_needed()
 		_place_side_route_find()
+		_place_secret_finds()
 
 
 ## The registry says what this level's side route holds ("find") and what
-## plugs its other detours ("gate"); the generator lays them out.
+## plugs its other detours ("gate"); the generator lays them out. It can also
+## ask for secret pockets ("secrets", "secret_style", "secret_find").
 func _configure_detours() -> void:
 	var entry := LevelRegistry.find(level_id)
 	generator.reserve_find_spot = entry.has("find")
@@ -70,6 +73,26 @@ func _configure_detours() -> void:
 	match entry.get("gate", ""):
 		"vine": generator.side_room_gate = LevelGenerator.Gate.VINE
 		"slime": generator.side_room_gate = LevelGenerator.Gate.SLIME
+	var secret_finds := LevelRegistry.secret_finds_of(entry)
+	generator.secret_find_count = secret_finds.size()
+	if entry.has("secrets") or not secret_finds.is_empty():
+		generator.secret_count = maxi(int(entry.get("secrets", 0)), secret_finds.size())
+	match entry.get("secret_style", ""):
+		"false": generator.secret_style = LevelGenerator.SecretStyle.FALSE_WALL
+		"cracked": generator.secret_style = LevelGenerator.SecretStyle.CRACKED
+		"mixed": generator.secret_style = LevelGenerator.SecretStyle.MIXED
+
+
+## Secret finds (registry "secret_find") rest at the back of the first secret
+## pockets, hidden behind fake or cracked rock. Taken ones stay taken (named
+## "SecretFind", "SecretFind2", ...). Baked rooms keep theirs as saved nodes.
+func _place_secret_finds() -> void:
+	var finds := LevelRegistry.secret_finds_of(LevelRegistry.find(level_id))
+	for i in mini(finds.size(), generator.secret_spots.size()):
+		var node := _make_find(finds[i])
+		node.name = "SecretFind" if i == 0 else "SecretFind%d" % (i + 1)
+		node.position = generator.secret_spots[i]
+		add_child(node)
 
 
 ## Each find rests at the far end of its own detour: a pedestal (sword or
@@ -80,32 +103,81 @@ func _configure_detours() -> void:
 func _place_side_route_find() -> void:
 	var finds := LevelRegistry.finds_of(LevelRegistry.find(level_id))
 	for i in mini(finds.size(), generator.find_spots.size()):
-		var find: String = finds[i]
-		var node: Node2D
-		if find == "heart_container":
-			node = HeartVessel.new()
-		elif find == "wings":
-			node = WingFeather.new()
-		elif find.begins_with("ability:"):
-			var shrine := AbilityShrine.new()
-			shrine.ability = StringName(find.trim_prefix("ability:"))
-			node = shrine
-		else:
-			var item: Resource = load(find)
-			var pedestal := SwordPedestal.new()
-			pedestal.weapon = item as WeaponData
-			pedestal.armor = item as ArmorData
-			node = pedestal
+		var node := _make_find(finds[i])
 		node.name = "SideRouteFind" if i == 0 else "SideRouteFind%d" % (i + 1)
 		node.position = generator.find_spots[i]
 		add_child(node)
 
 
+## The node a registry find string stands for (see LevelRegistry "find").
+func _make_find(find: String) -> Node2D:
+	var node: Node2D
+	if find == "heart_container":
+		node = HeartVessel.new()
+	elif find == "wings":
+		node = WingFeather.new()
+	elif find.begins_with("ability:"):
+		var shrine := AbilityShrine.new()
+		shrine.ability = StringName(find.trim_prefix("ability:"))
+		node = shrine
+	else:
+		var item: Resource = load(find)
+		var pedestal := SwordPedestal.new()
+		pedestal.weapon = item as WeaponData
+		pedestal.armor = item as ArmorData
+		node = pedestal
+	return node
+
+
+## Main-path finds (registry "path_find": the Valkyrie Blade in hel_02, the
+## two feathers that mend her wings in hel_h08) sit on the floor right beside
+## the spawn she enters from below, where she can't miss them: a few tiles to
+## one side along the same floor, clear of the shrine. Like side-route finds
+## they stay taken (named "PathFind", "PathFind2", ...).
+func _place_path_finds() -> void:
+	var finds := LevelRegistry.path_finds_of(LevelRegistry.find(level_id))
+	if finds.is_empty():
+		return
+	var entrance := Vector2.INF
+	for key in ["start", "south", default_spawn, "default"]:
+		if spawns.has(key):
+			entrance = spawns[key]
+			break
+	if entrance == Vector2.INF:
+		return
+	var taken: Array[float] = []
+	var shrine := get_node_or_null(^"Shrine") as Node2D
+	if shrine:
+		taken.append(shrine.position.x)
+	for i in finds.size():
+		var at := entrance
+		for dx in [48.0, -48.0, 64.0, -64.0, 80.0, -80.0, 32.0, -32.0, 96.0, -96.0]:
+			var spot := entrance + Vector2(dx, 0)
+			if _floor_run(entrance, dx) and taken.all(func(x: float) -> bool: return absf(x - spot.x) >= 32.0):
+				at = spot
+				break
+		taken.append(at.x)
+		var node := _make_find(finds[i])
+		node.name = "PathFind" if i == 0 else "PathFind%d" % (i + 1)
+		node.position = at
+		add_child(node)
+
+
+## Every tile from `feet` to `dx` px to the side is standable (no pit or wall
+## between her and the spot).
+func _floor_run(feet: Vector2, dx: float) -> bool:
+	var steps := int(absf(dx) / TILE)
+	for i in range(1, steps + 1):
+		if not _standable(feet + Vector2(signf(dx) * i * TILE, 0)):
+			return false
+	return steps > 0
+
+
+## Quiet room-name tag on arrival. (New realms and save loads get the full
+## loading card instead; LevelManager decides which.)
 func announce() -> void:
-	if hud and hud.has_method("show_title"):
-		var realm_info := LevelRegistry.realm(realm)
-		var prefix: String = realm_info.get("name", "")
-		hud.show_title("%s — %s" % [prefix, display_name] if prefix != "" else display_name)
+	if hud and hud.has_method("show_room_name"):
+		hud.show_room_name(display_name)
 
 
 ## Damage type of this room's hazard tiles, for armor resistance: Hel's pools

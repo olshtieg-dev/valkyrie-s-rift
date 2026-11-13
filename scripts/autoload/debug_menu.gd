@@ -66,6 +66,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
+	# A cheat left on stays a cheat, even across loading a file.
+	if god_mode or noclip or infinite_flutter:
+		SaveGame.mark_debug_used()
 	_info.visible = show_info
 	if not show_info:
 		return
@@ -86,6 +89,7 @@ func _process(_delta: float) -> void:
 	if noclip: flags.append("NOCLIP")
 	if infinite_flutter: flags.append("INF-FLUTTER")
 	if GameManager.has_ability(&"dash"): flags.append("DASH")
+	if SaveGame.debug_used and SaveGame.current_slot > 0: flags.append("NO-SAVE")
 	if not flags.is_empty():
 		lines.append(" ".join(flags))
 	_info.text = "\n".join(lines)
@@ -103,12 +107,17 @@ func _set_menu_open(open: bool) -> void:
 		_first_focus.grab_focus()
 
 
+## Every change the menu makes to the run marks it, so it is never saved
+## (SaveGame.debug_used). Only the info readout and controller setup don't.
 func _close_and(action: Callable) -> void:
+	SaveGame.mark_debug_used()
 	_set_menu_open(false)
 	action.call()
 
 
 func _set_flag(flag: String, value: bool) -> void:
+	if flag != "show_info":
+		SaveGame.mark_debug_used()
 	set(flag, value)
 	if _toggle_buttons.has(flag):
 		(_toggle_buttons[flag] as CheckButton).set_pressed_no_signal(value)
@@ -123,6 +132,7 @@ func _spawn_enemy(path: String) -> void:
 	var scene := get_tree().current_scene
 	if not p or not scene:
 		return
+	SaveGame.mark_debug_used()
 	var facing: float = p.get_node("Pivot").scale.x if p.has_node("Pivot") else 1.0
 	var mob: Node2D = load(path).instantiate()
 	mob.global_position = p.global_position + Vector2(facing * 56.0, -20.0)
@@ -190,13 +200,26 @@ func _build_ui() -> void:
 			levels.add_child(button)
 			if _first_focus == null:
 				_first_focus = button
+	# Level packs (levels/packs/*): saved snapshots and custom room sets.
+	# Warping in uses the grand card, like loading a save.
+	for pack: Dictionary in LevelRegistry.packs():
+		var pack_head := _heading("PACK: %s" % pack["name"], Color(0.8, 0.7, 1.0))
+		pack_head.tooltip_text = pack["description"]
+		pack_head.mouse_filter = Control.MOUSE_FILTER_PASS
+		levels.add_child(pack_head)
+		for level: Dictionary in pack["levels"]:
+			var button := Button.new()
+			button.text = "  %s%s" % [level["name"], "  (start)" if level["id"] == pack["start"] else ""]
+			button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			button.pressed.connect(_close_and.bind(LevelManager.go_to.bind(level["id"], "", true)))
+			levels.add_child(button)
 
 	# Right column: toggles and actions.
 	var tools := VBoxContainer.new()
 	tools.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	columns.add_child(tools)
 	tools.add_child(_heading("CONTROLLER", Color.WHITE))
-	_add_action(tools, "Controller setup", _show_controller_setup.bind(true))
+	_add_action(tools, "Controller setup", _show_controller_setup.bind(true), false)
 	tools.add_child(preload("res://scenes/ui/music_volume_slider.tscn").instantiate())
 	tools.add_child(preload("res://scenes/ui/sfx_volume_slider.tscn").instantiate())
 	tools.add_child(_heading("CHEATS", Color.WHITE))
@@ -213,7 +236,7 @@ func _build_ui() -> void:
 	tools.add_child(shapes)
 
 	tools.add_child(_heading("ACTIONS", Color.WHITE))
-	_add_action(tools, "Loadout (swords, armor, abilities)", _show_loadout.bind(true))
+	_add_action(tools, "Loadout (swords, armor, abilities)", _show_loadout.bind(true), false) # marks on a change
 	_add_action(tools, "Reload level  [F4]", func() -> void: _close_and(LevelManager.reload_level))
 	_add_action(tools, "Reroll seed", func() -> void: _close_and(LevelManager.reroll_current))
 	_add_action(tools, "Heal to full", func() -> void:
@@ -301,14 +324,17 @@ func _add_toggle(parent: Control, flag: String, text: String) -> void:
 	var toggle := CheckButton.new()
 	toggle.text = text
 	toggle.button_pressed = get(flag)
-	toggle.toggled.connect(func(on: bool) -> void: set(flag, on))
+	toggle.toggled.connect(func(on: bool) -> void: _set_flag(flag, on))
 	parent.add_child(toggle)
 	_toggle_buttons[flag] = toggle
 
 
-func _add_action(parent: Control, text: String, action: Callable) -> void:
+## `changes_run`: pressing it changes the run, so the file stops saving.
+func _add_action(parent: Control, text: String, action: Callable, changes_run: bool = true) -> void:
 	var button := Button.new()
 	button.text = text
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	if changes_run:
+		button.pressed.connect(SaveGame.mark_debug_used)
 	button.pressed.connect(action)
 	parent.add_child(button)

@@ -132,8 +132,9 @@ func _build_swords(parent: Control, p: Node) -> void:
 		box.tooltip_text = data.description
 		box.button_pressed = is_carried
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		# At least one sword stays; no more than the cap.
-		box.disabled = (is_carried and carried.size() <= 1) or (not is_carried and carried.size() >= cap)
+		# No more than the cap. Unticking the last one leaves her unarmed
+		# (stomp only), as at the start of a new game.
+		box.disabled = not is_carried and carried.size() >= cap
 		box.toggled.connect(_on_sword_toggled.bind(data))
 		box.focus_entered.connect(_show_info.bind(data.display_name, data.description))
 		row.add_child(box)
@@ -149,6 +150,8 @@ func _build_swords(parent: Control, p: Node) -> void:
 		_remember("hold:" + key, hold)
 	if carried.size() >= cap:
 		parent.add_child(_label("Full: untick one to swap.", DIM))
+	elif carried.is_empty():
+		parent.add_child(_label("Unarmed: stomp only.", DIM))
 
 
 func _build_armor(parent: Control, p: Node) -> void:
@@ -191,8 +194,9 @@ func _build_stats(parent: Control, p: Node) -> void:
 	_stepper(parent, "hearts", "Heart containers  %d%s" % [containers, "  (+%d armor)" % armor_hearts if armor_hearts > 0 else ""],
 			containers > 1, containers < MAX_HEART_CONTAINERS)
 	var bonus: int = p.flutter_bonus
-	_stepper(parent, "wings", "Wing bonus  +%d   (flutters %d)" % [bonus, p.max_flutter_charges],
-			bonus > 0, bonus < p.FLUTTER_CAP - 1) # enough for a 1-flutter sword to reach the cap
+	# Feathers found: the first WINGS_FEATHERS mend her wings, each after is +1.
+	_stepper(parent, "wings", "Wing feathers  %d   (flutters %d)" % [bonus, p.max_flutter_charges],
+			bonus > 0, bonus < p.FLUTTER_CAP + p.WINGS_FEATHERS - 1) # a 1-flutter sword reaches the cap
 
 
 func _show_info(title: String, text: String) -> void:
@@ -210,11 +214,11 @@ func _on_sword_toggled(on: bool, data: WeaponData) -> void:
 	if on and not data in swords and swords.size() < p.MAX_LOADOUT:
 		swords.append(data)
 		GameManager.own_weapon(data)
-	elif not on and data in swords and swords.size() > 1:
+	elif not on and data in swords:
 		swords.erase(data)
 	var slot := swords.find(held)
 	if slot < 0:
-		slot = mini(p.active_slot, swords.size() - 1)
+		slot = maxi(0, mini(p.active_slot, swords.size() - 1))
 	p.set_loadout(swords, slot)
 	_commit("sword:" + data.resource_path)
 
@@ -273,6 +277,8 @@ func _on_step(which: String, step: int) -> void:
 ## Writes her state to GameManager (so reloads, level changes and deaths keep
 ## it) and redraws the page with focus back on `focus_key`.
 func _commit(focus_key: String) -> void:
+	if not focus_key.begins_with("skin"): # the armor skin is a cosmetic setting, not the run
+		SaveGame.mark_debug_used()
 	var p := _player()
 	if p:
 		GameManager.store_player_state(p)

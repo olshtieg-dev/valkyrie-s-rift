@@ -1,0 +1,175 @@
+{
+	"description": "The first 14-room Hel test run, baked 2026-11-13 before the rooms were resized and the unarmed opening was added. Original seeds and sizes; finds and gates as they were.",
+	"levels": [
+		{
+			"file": "h01_where_she_fell.tscn",
+			"id": "t1_hel_h01",
+			"name": "Where She Fell",
+			"realm": "hel",
+			"seed": 101,
+			"size": [
+				40,
+				40
+			],
+			"source": "hel_h01"
+		},
+		{
+			"file": "hel_02_brimstone_ascent.tscn",
+			"id": "t1_hel_02",
+			"name": "Brimstone Ascent",
+			"realm": "hel",
+			"seed": 2027,
+			"size": [
+				64,
+				100
+			],
+			"source": "hel_02"
+		},
+		{
+			"file": "h08_brimstone_ascent.tscn",
+			"id": "t1_hel_h08",
+			"name": "Brimstone Depths",
+			"realm": "hel",
+			"seed": 2027,
+			"size": [
+				64,
+				100
+			],
+			"source": "hel_h08"
+		},
+		{
+			"file": "h09_ember_forge.tscn",
+			"id": "t1_hel_h09",
+			"name": "Ember Forge",
+			"realm": "hel",
+			"seed": 909,
+			"size": [
+				40,
+				28
+			],
+			"source": "hel_h09"
+		},
+		{
+			"file": "h02_the_pit.tscn",
+			"id": "t1_hel_h02",
+			"name": "The Pit",
+			"realm": "hel",
+			"seed": 1013,
+			"size": [
+				48,
+				130
+			],
+			"source": "hel_h02"
+		},
+		{
+			"file": "h03_frozen_hollow.tscn",
+			"id": "t1_hel_h03",
+			"name": "Frozen Hollow",
+			"realm": "hel",
+			"seed": 303,
+			"size": [
+				36,
+				24
+			],
+			"source": "hel_h03"
+		},
+		{
+			"file": "h04_ember_hub.tscn",
+			"id": "t1_hel_h04",
+			"name": "Ember Hub",
+			"realm": "hel",
+			"seed": 404,
+			"size": [
+				90,
+				60
+			],
+			"source": "hel_h04"
+		},
+		{
+			"file": "h05_cinder_hall.tscn",
+			"id": "t1_hel_h05",
+			"name": "Cinder Hall",
+			"realm": "hel",
+			"seed": 505,
+			"size": [
+				70,
+				20
+			],
+			"source": "hel_h05"
+		},
+		{
+			"file": "h06_ash_chimney.tscn",
+			"id": "t1_hel_h06",
+			"name": "Ash Chimney",
+			"realm": "hel",
+			"seed": 606,
+			"size": [
+				24,
+				90
+			],
+			"source": "hel_h06"
+		},
+		{
+			"file": "h07_sealed_cache.tscn",
+			"id": "t1_hel_h07",
+			"name": "Sealed Cache",
+			"realm": "hel",
+			"seed": 707,
+			"size": [
+				30,
+				24
+			],
+			"source": "hel_h07"
+		},
+		{
+			"file": "h10_draugr_hall.tscn",
+			"id": "t1_hel_h10",
+			"name": "Draugr Hall",
+			"realm": "hel",
+			"seed": 1010,
+			"size": [
+				80,
+				30
+			],
+			"source": "hel_h10"
+		},
+		{
+			"file": "h11_modguds_rest.tscn",
+			"id": "t1_hel_h11",
+			"name": "Modgud's Rest",
+			"realm": "hel",
+			"seed": 1111,
+			"size": [
+				36,
+				24
+			],
+			"source": "hel_h11"
+		},
+		{
+			"file": "h12_garmrs_den.tscn",
+			"id": "t1_hel_h12",
+			"name": "Garmr's Den",
+			"realm": "hel",
+			"seed": 1212,
+			"size": [
+				60,
+				24
+			],
+			"source": "hel_h12"
+		},
+		{
+			"file": "h13_hels_breach.tscn",
+			"id": "t1_hel_h13",
+			"name": "Hel's Breach",
+			"realm": "hel",
+			"seed": 1313,
+			"size": [
+				24,
+				60
+			],
+			"source": "hel_h13"
+		}
+	],
+	"name": "Hel try-out 1",
+	"start": "t1_hel_h01"
+}
